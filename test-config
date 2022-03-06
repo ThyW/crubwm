@@ -1,0 +1,9 @@
+keybind "<Mod><CR>" execute "xterm"
+keybind "<Mod>q" kill
+keybind "<Mod>1" goto "1"
+keybind "<Mod><Shift>1" move "1"
+keybind "<Mod><up>" focus "up"
+keybind "<Mod><down>" focus "down"
+keybind "<Mod><left>" focus "left"
+keybind "<Mod><right>" focus "right"
+option "border_color" "#00ff00"
