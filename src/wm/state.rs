@@ -1,7 +1,9 @@
 use x11rb::{
     connect,
     connection::Connection,
-    protocol::xproto::{ConnectionExt, Screen, ConfigureWindowAux, ChangeWindowAttributesAux, EventMask},
+    protocol::xproto::{
+        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, Screen,
+    },
     rust_connection::RustConnection,
 };
 
@@ -13,8 +15,8 @@ pub struct State {
     connection: RustConnection,
     screen_index: usize,
     workspaces: Option<Workspaces>,
-    focused_workspace: WorkspaceId,
-    focused_client: Client,
+    focused_workspace: Option<WorkspaceId>,
+    focused_client: Option<Client>,
 }
 
 impl State {
@@ -25,8 +27,18 @@ impl State {
     pub fn new(_name: Option<&str>) -> WmResult<Self> {
         let (conn, screen_index) = connect(None)?;
 
-        let change = ChangeWindowAttributesAux::default()
-            .event_mask(EventMask::KEY_PRESS | EventMask::SUBSTRUCTURE_NOTIFY);
+        // change root window attributes
+        let change = ChangeWindowAttributesAux::default().event_mask(
+            EventMask::KEY_PRESS
+                | EventMask::SUBSTRUCTURE_NOTIFY
+                | EventMask::SUBSTRUCTURE_REDIRECT
+                | EventMask::BUTTON_PRESS
+                | EventMask::POINTER_MOTION
+                | EventMask::ENTER_WINDOW
+                | EventMask::LEAVE_WINDOW
+                | EventMask::STRUCTURE_NOTIFY
+                | EventMask::PROPERTY_CHANGE,
+        );
 
         conn.change_window_attributes(conn.setup().roots[screen_index].root, &change)?;
 
@@ -34,8 +46,8 @@ impl State {
             connection: conn,
             screen_index,
             workspaces: None,
-            focused_workspace: 0,
-            focused_client: 0,
+            focused_workspace: None,
+            focused_client: None,
         })
     }
 

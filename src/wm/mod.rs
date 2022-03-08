@@ -55,14 +55,12 @@ impl Wm {
 
         loop {
             conn.flush()?;
-            println!("looping");
             let event = conn.wait_for_event()?;
 
-            let mut evo = Some(event);
-            while let Some(e) = evo {
-                println!("looping");
-                self.handle_event(e)?;
-                evo = conn.poll_for_event()?;
+            let mut event_option = Some(event);
+            while let Some(ev) = event_option {
+                self.handle_event(ev)?;
+                event_option = conn.poll_for_event()?;
             }
         }
     }

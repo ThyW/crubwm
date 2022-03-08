@@ -1,6 +1,6 @@
 use x11rb::protocol::xproto::GetGeometryReply;
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Geometry {
     pub root: u32,
     pub depth: u8,
