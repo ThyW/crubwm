@@ -1,78 +1,95 @@
 #![allow(dead_code)]
-use std::rc::Rc;
+use crate::errors::WmResult;
 
 use super::geometry::Geometry;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Client {
-    wid: u32,
-    pid: u32,
-    geometry: Geometry,
+    pub wid: u32,
+    pub pid: u32,
+    pub geometry: Geometry,
 }
 
 impl Client {
     pub fn new(wid: u32, pid: u32, geometry: Geometry) -> Self {
         Self { wid, pid, geometry }
     }
-
-    pub fn wid(&self) -> u32 {
-        self.wid
-    }
-
-    pub fn pid(&self) -> u32 {
-        self.pid
-    }
 }
 
 #[derive(Clone)]
-pub enum ContainerType {
-    Empty,
-    InLayout,
-    Floating,
+pub enum Container {
+    Empty(Geometry),
+    InLayout(Client),
+    Floating(Client),
 }
 
-impl Default for ContainerType {
+impl Default for Container {
     fn default() -> Self {
-        Self::InLayout
+        Self::Empty(Geometry::default())
     }
 }
 
-#[derive(Clone)]
-pub struct ContainerData {
-    client: Client,
-    container_type: ContainerType,
-}
+impl Container {
+    /// Create a new, in-layout container.
+    pub fn new(c: Client) -> Self {
+        Self::InLayout(c)
+    }
 
-impl ContainerData {
-    pub fn new(client: Client, container_type: ContainerType) -> Self {
-        Self {
-            client,
-            container_type,
+    /// Turn an in-layout container to a floating container.
+    pub fn into_floating(self) -> Option<Self> {
+        match self {
+            Self::InLayout(c) => Some(Self::Floating(c)),
+            Self::Floating(_) => Some(self),
+            Self::Empty(_) => None,
         }
     }
+
+    /// Turn a floating container into an in-layout one.
+    pub fn into_layout(self) -> Option<Self> {
+        match self {
+            Self::InLayout(_) => Some(self),
+            Self::Floating(c) => Some(Self::InLayout(c)),
+            Self::Empty(_) => None,
+        }
+    }
+
+    /// If the container is not empty, return the Client of this container and make the container
+    /// empty.
+    pub fn take(&mut self) -> Option<Client> {
+        let c = match self {
+            Self::InLayout(c) => Some(*c),
+            Self::Floating(c) => Some(*c),
+            Self::Empty(_) => None,
+        };
+
+        if let Some(client) = c {
+            let g = client.geometry;
+            let _ = std::mem::replace(self, Self::Empty(g));
+            return c;
+        }
+
+        None
+    }
 }
 
-pub struct ContainerNode {
-    data: ContainerData,
-    next: Option<Rc<ContainerNode>>,
-    prev: Option<Rc<ContainerNode>>,
+type Link = Option<Rc<RefCell<ContainerListNode>>>;
+
+struct ContainerListNode {
+    data: Container,
+    id: u32,
+    next: Link,
+    prev: Link,
 }
 
-impl ContainerNode {
-    pub fn new(data: ContainerData) -> Self {
+impl ContainerListNode {
+    fn new(cont: Container, id: u32) -> Self {
         Self {
-            data,
+            data: cont,
+            id,
             next: None,
             prev: None,
         }
-    }
-
-    fn set_next(&mut self, next: Rc<Self>) {
-        self.next = Some(next)
-    }
-
-    fn set_prev(&mut self, prev: Rc<Self>) {
-        self.prev = Some(prev)
     }
 }
 
@@ -80,252 +97,196 @@ impl ContainerNode {
 /// It consists of reference counted pointers to ConainerNodes.
 /// It supports basic operations of addition, removal, length information, emptiness check.
 pub struct ContainerList {
-    pub first: Option<Rc<ContainerNode>>,
-    pub last: Option<Rc<ContainerNode>>,
-    focused: Option<Rc<ContainerNode>>,
-    len: usize,
+    last_id: u32,
+    first: Link,
+    last: Link,
+    len: u32,
 }
 
 impl ContainerList {
-    pub const fn new() -> Self {
+    /// Construct a new container list. This is only done on workspace initialization.
+    pub fn new() -> Self {
         Self {
+            last_id: 0,
             first: None,
             last: None,
-            focused: None,
             len: 0,
         }
     }
 
-    /// Return the number of nodes in the list.
-    pub fn len(&self) -> usize {
-        self.len
+    fn new_id(&mut self) -> u32 {
+        self.last_id += 1;
+        self.last_id
     }
 
-    /// Checks if the list is empty.
+    /// Add a new container from the front of the list.
+    ///
+    /// This function returns the unique ID of the new node.
+    pub fn add_front(&mut self, c: Client) -> WmResult<u32> {
+        let cont = Container::new(c);
+        let id = self.new_id();
+        let mut node = ContainerListNode::new(cont, id);
+
+        // if the 'first node' exists, make the 'new' node 'first node' and add the 'new first node' as the
+        // 'old first node's' previous.
+        if let Some(first_node) = &self.first {
+            node.next = Some(first_node.clone());
+            let node_rc = new_rc(node);
+            first_node.try_borrow_mut()?.prev = Some(node_rc);
+        } else {
+            let node_rc = new_rc(node);
+            self.first = Some(node_rc.clone());
+            self.last = Some(node_rc.clone())
+        }
+
+        self.len += 1;
+
+        Ok(id)
+    }
+
+    /// Add a new container to the back of the list.
+    ///
+    /// This fucntion returns the unique ID of the new node.
+    pub fn add_back(&mut self, c: Client) -> WmResult<u32> {
+        let cont = Container::new(c);
+        let id = self.new_id();
+        let mut node = ContainerListNode::new(cont, id);
+
+        if let Some(last_node) = &self.last {
+            node.prev = Some(last_node.clone());
+            let node_rc = new_rc(node);
+            last_node.try_borrow_mut()?.next = Some(node_rc)
+        } else {
+            let node_rc = new_rc(node);
+            self.first = Some(node_rc.clone());
+            self.last = Some(node_rc.clone())
+        }
+
+        self.len += 1;
+
+        Ok(id)
+    }
+
+    /// Checks whether the nodes is empty or not.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.len == 0
     }
 
-    /// Add a new client to the end of the list.
-    pub fn append(&mut self, c: Client) {
-        let data = ContainerData::new(c, ContainerType::default());
-
-        let node = ContainerNode::new(data);
-        let mut rc = Rc::new(node);
-
+    fn find(&self, id: u32) -> WmResult<Rc<RefCell<ContainerListNode>>> {
         if self.is_empty() {
-            self.first = Some(rc.clone());
-            self.last = Some(rc.clone())
-        } else {
-            if let Some(mut last) = self.last.take() {
-                if let Some(node) = Rc::get_mut(&mut last) {
-                    node.set_next(rc.clone());
-                    if let Some(new) = Rc::get_mut(&mut rc) {
-                        new.set_prev(last);
-                        self.last = Some(rc);
-                        self.len += 1
+            return Err("container list error: container list is empty.".into());
+        }
+
+        for node in self.first.as_ref() {
+            let n = node.try_borrow()?;
+            if n.id == id {
+                return Ok(node.clone());
+            }
+        }
+        Err("container list error: given id not found.".into())
+    }
+
+    /// Swap two nodes, given their IDs.
+    ///
+    /// A nodes ID can be obtained from the `id_for_wid()` and `id_for_pid()` methods.
+    pub fn swap(&mut self, a: u32, b: u32) -> WmResult {
+        // get the two nodes
+        let na = self.find(a)?;
+        let nb = self.find(b)?;
+
+        // swap the data and the id, while keeping neighbors
+        // first, try borrowing both nodes.
+        let mut borrowed_a = na.try_borrow_mut()?;
+        let mut borrowed_b = nb.try_borrow_mut()?;
+        // assign the data from the first node into a temporary tuple.
+        let temp_a = (borrowed_a.data.clone(), borrowed_a.id);
+
+        // perform the swap.
+        borrowed_a.data = borrowed_b.data.clone();
+        borrowed_a.id = borrowed_b.id;
+
+        borrowed_b.data = temp_a.0;
+        borrowed_b.id = temp_a.1;
+
+        Ok(())
+    }
+
+    /// Return the node's ID given the client's wid.
+    pub fn id_for_wid(&self, wid: u32) -> WmResult<u32> {
+        for node in self.first.iter() {
+            let n = node.try_borrow()?;
+            match n.data {
+                Container::InLayout(c) => {
+                    if c.wid == wid {
+                        return Ok(n.id)
+                    }
+                },
+                Container::Floating(c) => {
+                    if c.wid == wid {
+                        return Ok(n.id)
                     }
                 }
+                _ => (),
             }
         }
+        Err("container list error: id not found.".into())
     }
 
-    /// Add a new client to the start of the cointainer list.
-    pub fn prepend(&mut self, c: Client) {
-        let data = ContainerData::new(c, ContainerType::default());
-
-        let node = ContainerNode::new(data);
-        let mut rc = Rc::new(node);
-
-        if self.is_empty() {
-            self.first = Some(rc.clone());
-            self.last = Some(rc.clone());
-        } else {
-            if let Some(mut first_rc) = self.first.take() {
-                if let Some(node_first) = Rc::get_mut(&mut first_rc) {
-                    node_first.set_prev(rc.clone());
-                    if let Some(new) = Rc::get_mut(&mut rc) {
-                        new.set_next(first_rc);
-                        self.first = Some(rc);
-                        self.len += 1
+    /// Return the node's ID given the client's pid.
+    pub fn id_for_pid(&self, pid: u32) -> WmResult<u32> {
+        for node in self.first.iter() {
+            let n = node.try_borrow()?;
+            match n.data {
+                Container::InLayout(c) => {
+                    if c.pid == pid {
+                        return Ok(n.id)
+                    }
+                },
+                Container::Floating(c) => {
+                    if c.pid == pid {
+                        return Ok(n.id)
                     }
                 }
+                _ => (),
             }
         }
+        Err("container list error: id not found.".into())
     }
+}
 
-    /// Get a reference to a client given its window id, if it is in the list.
-    pub fn get_client_by_wid(&self, id: u32) -> Option<&Client> {
-        if self.is_empty() {
-            return None;
-        }
+fn new_rc(n: ContainerListNode) -> Rc<RefCell<ContainerListNode>> {
+    Rc::new(RefCell::new(n))
+}
 
-        let mut node = &self.first;
-        while node.is_some() {
-            let inside = node.as_ref().unwrap();
-            if id == inside.data.client.wid() {
-                return Some(&inside.data.client);
-            } else {
-                node = &inside.next
-            }
-        }
+struct IterCursor {
+    curr: Option<Rc<RefCell<ContainerListNode>>>,
+}
 
-        None
-    }
-
-    /// Get a reference to a client given its process id, if it is in the list.
-    pub fn get_client_by_pid(&self, id: u32) -> Option<&Client> {
-        if self.is_empty() {
-            return None;
-        }
-        let mut node = &self.first;
-
-        while node.is_some() {
-            let inside = node.as_ref().unwrap();
-            if id == inside.data.client.pid {
-                return Some(&inside.data.client);
-            } else {
-                node = &inside.next;
-            }
-        }
-
-        None
-    }
-
-    /// Helper function: given a window id, attempt to return the node which contains the client
-    /// with that window id.
-    fn get_rc_by_wid(&self, id: u32) -> Option<Rc<ContainerNode>> {
-        if self.is_empty() {
-            return None;
-        }
-
-        let mut node = &self.first;
-        while node.is_some() {
-            let inside = node.as_ref().unwrap();
-            if id == inside.data.client.wid() {
-                return node.clone();
-            } else {
-                node = &inside.next;
-            }
-        }
-
-        None
-    }
-
-    /// Helper function: given a process id, attempt to return the node which contains the client
-    /// with that process id.
-    fn get_rc_by_pid(&self, id: u32) -> Option<Rc<ContainerNode>> {
-        if self.is_empty() {
-            return None;
-        }
-
-        let mut node = &self.first;
-        while node.is_some() {
-            let inside = node.as_ref().unwrap();
-            if id == inside.data.client.pid() {
-                return node.clone();
-            } else {
-                node = &inside.next;
-            }
-        }
-
-        None
-    }
-
-    /// Retrun the data of the element in the list and remove the element from the list.
-    pub fn pop_first(&mut self) -> Option<ContainerData> {
-        if self.is_empty() {
-            return None
-        }
-
-        if let Some(first) = &mut self.first {
-            let next = first.next.as_ref();
-
-            if let Some(next_node) = next {
-                if let Some(next_inside) = Rc::get_mut(&mut next_node.clone()) {
-                    next_inside.prev = None;
+impl Iterator for IterCursor {
+    type Item = Rc<RefCell<ContainerListNode>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.curr.as_ref().unwrap().try_borrow() {
+            Ok(i) => {
+                if let Some(next) = &i.next {
+                    return Some(next.clone())
+                } else {
+                    return None
                 }
+            },
+            Err(_) => {
+                return None
             }
-
-            if let Some(first_inside) = Rc::get_mut(first) {
-                first_inside.next = None;
-                self.len -= 1;
-                return Some(first_inside.data.clone())
-            }
-
-        }
-
-        None
+        };
     }
+}
 
-    /// Return the data in the last node of the list and remove the node from the list.
-    pub fn pop_last(&mut self) -> Option<ContainerData> {
-        if self.is_empty() {
-            return None
-        }
+impl IntoIterator for  ContainerListNode {
+    type Item = Rc<RefCell<ContainerListNode>>;
+    type IntoIter = IterCursor;
 
-        if let Some(last) = &mut self.last {
-            let prev = last.prev.as_ref();
-
-            if let Some(prev_node) = prev {
-                if let Some(prev_inside) = Rc::get_mut(&mut prev_node.clone()) {
-                    prev_inside.next = None;
-                }
-            }
-
-            if let Some(last_inside) = Rc::get_mut(last) {
-                last_inside.prev = None;
-                self.len -= 1;
-                return Some(last_inside.data.clone())
-            }
-        }
-
-        None
-    }
-
-    /// Remove a client given its window id.
-    pub fn remove_by_wid(&mut self, id: u32) {
-        if let Some(mut node) = self.get_rc_by_wid(id) {
-            // next and previous node of the 'to be deleted' node.
-            let next = node.next.as_ref();
-            let prev = node.prev.as_ref();
-
-            // if the 'next' node exists, change its 'prev' reference to this node's 'prev'
-            // reference. Otherwise, make the 'prev' reference None.
-            if let Some(next_n) = next {
-                if let Some(inside) = Rc::get_mut(&mut next_n.clone()) {
-                    inside.prev = match prev.cloned() {
-                        Some(x) => Some(x),
-                        None => None,
-                    };
-                }
-            } else {
-                return
-            }
-            // if the 'prev' node exists, change its 'next' reference to this node's 'next'
-            // reference. Otherwise, make the 'next' reference None.
-            if let Some(prev_n) = prev {
-                if let Some(inside) = Rc::get_mut(&mut prev_n.clone()) {
-                    inside.next = match next.cloned() {
-                        Some(x) => Some(x),
-                        None => None,
-                    };
-                }
-            } else {
-                return
-            }
-
-            // remove all the references from this node.
-            if let Some(curr_inside) = Rc::get_mut(&mut node) {
-                curr_inside.next = None;
-                curr_inside.prev = None;
-            } else {
-                return
-            }
-
-
-            self.len -= 1;
-            drop(node)
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter {
+            curr: self.next
         }
     }
 }
