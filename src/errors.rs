@@ -7,6 +7,8 @@ pub enum Error {
     X11Connect(x11rb::errors::ConnectError),
     X11Connection(x11rb::errors::ConnectionError),
     X11Reply(x11rb::errors::ReplyError),
+    Borrow(std::cell::BorrowError),
+    BorrowMut(std::cell::BorrowMutError),
 }
 
 impl From<std::io::Error> for Error {
@@ -54,6 +56,17 @@ impl From<x11rb::errors::ConnectionError> for Error {
 impl From<x11rb::errors::ReplyError> for Error {
     fn from(e: x11rb::errors::ReplyError) -> Self {
         Self::X11Reply(e)
+    }
+}
+
+impl From<std::cell::BorrowError> for Error {
+    fn from(e: std::cell::BorrowError) -> Self {
+        Self::Borrow(e)
+    }
+}
+impl From<std::cell::BorrowMutError> for Error {
+    fn from(e: std::cell::BorrowMutError) -> Self {
+        Self::BorrowMut(e)
     }
 }
 
