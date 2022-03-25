@@ -77,16 +77,16 @@ type Link = Option<Rc<RefCell<ContainerListNode>>>;
 
 struct ContainerListNode {
     data: Container,
-    id: u32,
+    id: (u32, u32),
     next: Link,
     prev: Link,
 }
 
 impl ContainerListNode {
-    fn new(cont: Container, id: u32) -> Self {
+    fn new(cont: Container, workspace_id: u32, id: u32) -> Self {
         Self {
             data: cont,
-            id,
+            id: (workspace_id, id),
             next: None,
             prev: None,
         }
@@ -95,9 +95,10 @@ impl ContainerListNode {
 
 /// A container list a doubly linked list which is responsible for managing  windows.
 /// It consists of reference counted pointers to ConainerNodes.
-/// It supports basic operations of addition, removal, length information, emptiness check.
+/// It supports basic operations of addition, removal, length information and an emptiness check.
 pub struct ContainerList {
     last_id: u32,
+    ws_id: u32,
     first: Link,
     last: Link,
     len: u32,
@@ -105,12 +106,13 @@ pub struct ContainerList {
 
 impl ContainerList {
     /// Construct a new container list. This is only done on workspace initialization.
-    pub fn new() -> Self {
+    pub fn new(ws_id: u32) -> Self {
         Self {
             last_id: 0,
             first: None,
             last: None,
             len: 0,
+            ws_id,
         }
     }
 
@@ -125,7 +127,7 @@ impl ContainerList {
     pub fn add_front(&mut self, c: Client) -> WmResult<u32> {
         let cont = Container::new(c);
         let id = self.new_id();
-        let mut node = ContainerListNode::new(cont, id);
+        let mut node = ContainerListNode::new(cont, self.ws_id, id);
 
         // if the 'first node' exists, make the 'new' node 'first node' and add the 'new first node' as the
         // 'old first node's' previous.
@@ -150,7 +152,7 @@ impl ContainerList {
     pub fn add_back(&mut self, c: Client) -> WmResult<u32> {
         let cont = Container::new(c);
         let id = self.new_id();
-        let mut node = ContainerListNode::new(cont, id);
+        let mut node = ContainerListNode::new(cont, self.ws_id, id);
 
         if let Some(last_node) = &self.last {
             node.prev = Some(last_node.clone());
@@ -179,7 +181,7 @@ impl ContainerList {
 
         for node in self.first.as_ref() {
             let n = node.try_borrow()?;
-            if n.id == id {
+            if n.id.1 == id {
                 return Ok(node.clone());
             }
         }
@@ -218,12 +220,12 @@ impl ContainerList {
             match n.data {
                 Container::InLayout(c) => {
                     if c.wid == wid {
-                        return Ok(n.id)
+                        return Ok(n.id.1);
                     }
-                },
+                }
                 Container::Floating(c) => {
                     if c.wid == wid {
-                        return Ok(n.id)
+                        return Ok(n.id.1);
                     }
                 }
                 _ => (),
@@ -239,12 +241,12 @@ impl ContainerList {
             match n.data {
                 Container::InLayout(c) => {
                     if c.pid == pid {
-                        return Ok(n.id)
+                        return Ok(n.id.1);
                     }
-                },
+                }
                 Container::Floating(c) => {
                     if c.pid == pid {
-                        return Ok(n.id)
+                        return Ok(n.id.1);
                     }
                 }
                 _ => (),
@@ -268,25 +270,21 @@ impl Iterator for IterCursor {
         match self.curr.as_ref().unwrap().try_borrow() {
             Ok(i) => {
                 if let Some(next) = &i.next {
-                    return Some(next.clone())
+                    return Some(next.clone());
                 } else {
-                    return None
+                    return None;
                 }
-            },
-            Err(_) => {
-                return None
             }
+            Err(_) => return None,
         };
     }
 }
 
-impl IntoIterator for  ContainerListNode {
+impl IntoIterator for ContainerListNode {
     type Item = Rc<RefCell<ContainerListNode>>;
     type IntoIter = IterCursor;
 
     fn into_iter(self) -> Self::IntoIter {
-        Self::IntoIter {
-            curr: self.next
-        }
+        Self::IntoIter { curr: self.next }
     }
 }
