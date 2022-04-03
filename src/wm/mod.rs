@@ -1,4 +1,7 @@
-use x11rb::{connection::Connection, protocol::Event};
+use x11rb::{
+    connection::Connection,
+    protocol::{xproto::ConnectionExt, Event},
+};
 
 use crate::{
     config::Config,
@@ -10,7 +13,7 @@ use crate::{
 pub mod actions;
 mod container;
 mod geometry;
-mod layout;
+mod layouts;
 mod state;
 mod workspace;
 
@@ -33,6 +36,7 @@ pub struct Wm {
 }
 
 impl Wm {
+    /// Create a new window manager instance.
     pub fn new(config: Config) -> WmResult<Self> {
         let display_name = match config.options.display_name.is_empty() {
             true => Some(config.options.display_name.as_str()),
@@ -43,6 +47,8 @@ impl Wm {
         Ok(Self { config, state })
     }
 
+    /// Run the window manager, this instantiates the event loop, constructs workspaces and does
+    /// all the necessary work in order for the window manager to function.
     pub fn run(&mut self, commands: Vec<Command>) -> WmResult {
         for command in commands {
             if command.get_type() == &CommandType::Help {
@@ -51,25 +57,55 @@ impl Wm {
             }
         }
 
-        let conn = self.state.connection();
+        self.state.init_workspaces();
+        self.state.become_wm()?;
+        // also grab keys, properties and more
 
         loop {
-            conn.flush()?;
-            let event = conn.wait_for_event()?;
+            self.state.connection().flush()?;
+            let event = self.state.connection().wait_for_event()?;
 
             let mut event_option = Some(event);
             while let Some(ev) = event_option {
-                self.handle_event(ev)?;
-                event_option = conn.poll_for_event()?;
+                if let Err(e) = self.handle_event(ev) {
+                    println!("{}", e)
+                }
+                event_option = self.state.connection().poll_for_event()?;
             }
         }
     }
 
-    pub fn handle_event(&self, event: Event) -> WmResult {
-        println!("event");
+    /// Event handler. Decide what to do with incoming X11 Events.
+    fn handle_event(&mut self, event: Event) -> WmResult {
         match event {
             Event::Error(e) => {
                 println!("X11Error: {:?}", e)
+            }
+            Event::KeyPress(e) => {
+                println!("Key press event: {:#x}", e.detail);
+                if e.detail == 0xa {
+                    let child = std::process::Command::new("xterm").spawn()?;
+                    println!("child id: {}", child.id());
+                }
+            }
+            Event::CreateNotify(e) => {
+                let g = self
+                    .state
+                    .connection()
+                    .get_geometry(e.window)?
+                    .reply()?
+                    .into();
+                self.state.manage_window(e.window, g)?;
+            }
+            Event::Expose(e) => {
+                println!("expose event on window: {}", e.window);
+            }
+            Event::UnmapNotify(e) => {
+                println!("unmap event: {:#?}", e)
+            }
+            Event::DestroyNotify(e) => {
+                println!("destory event: {:#?}", e);
+                self.state.unmanage_window(e.window)?;
             }
             ev => {
                 println!("{:#?}", ev);

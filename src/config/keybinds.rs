@@ -171,7 +171,7 @@ impl Key {
     }
 
     fn from_str(s: &str) -> WmResult<Self> {
-        // TODO: always match lover case
+        // TODO: always match lower case
         let key = match s {
             "Esc" => Key::Esc,
             "F1" | "f1" => Key::F1,
