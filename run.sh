@@ -21,8 +21,14 @@ export DISPLAY="${NDISPLAY}"
 sleep 1
 
 # run the command specified in the command line arguments given to this script
-$@
-wm=$!
+wm=""
+if [[ $1 = "default" ]]; then
+    cargo run -- --config test-config
+    wm=$!
+else
+    $@
+    wm=$!
+fi
 
 # run a new bash instance
 bash

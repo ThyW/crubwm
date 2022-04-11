@@ -89,6 +89,7 @@ impl Wm {
                 }
             }
             Event::CreateNotify(e) => {
+                println!("root window geometry: {}", self.state.root_geometry()?);
                 let g = self
                     .state
                     .connection()
@@ -107,8 +108,8 @@ impl Wm {
                 println!("destory event: {:#?}", e);
                 self.state.unmanage_window(e.window)?;
             }
-            ev => {
-                println!("{:#?}", ev);
+            _ev => {
+                // println!("{:#?}", ev);
             }
         };
 

@@ -12,6 +12,16 @@ pub struct Geometry {
     pub height: u16,
 }
 
+impl std::fmt::Display for Geometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "x: {} ", self.x).and_then(|_| {
+            write!(f, "y: {} ", self.y).and_then(|_| {
+                write!(f, "w: {} ", self.width).and_then(|_| write!(f, "h: {} ", self.height))
+            })
+        })
+    }
+}
+
 impl From<GetGeometryReply> for Geometry {
     fn from(g: GetGeometryReply) -> Self {
         Self {

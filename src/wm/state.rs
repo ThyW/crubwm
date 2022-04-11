@@ -164,6 +164,7 @@ impl State {
 
         let g = self.get_focused_ws()?.find(ws_container_id)?;
         let g = g.try_borrow()?.data().geometry();
+        println!("new window geometry: {}", g);
 
         let aux: ConfigureWindowAux = g.into();
 
