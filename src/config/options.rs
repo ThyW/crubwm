@@ -121,9 +121,7 @@ impl Options {
                     return Err(format!("option parsing error: Option {name} takes one of these arguments: left, middle, right; {value} was supplied.").into());
                 }
             }
-            "display_name" => {
-                self.display_name = value
-            }
+            "display_name" => self.display_name = value,
             _ => return Err(format!("option parsing error: Unknown option {name}").into()),
         }
 

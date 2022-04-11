@@ -1,5 +1,5 @@
-use x11rb::protocol::xproto::GetGeometryReply;
 use x11rb::protocol::xproto::ConfigureWindowAux;
+use x11rb::protocol::xproto::GetGeometryReply;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Geometry {

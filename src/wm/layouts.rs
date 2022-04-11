@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::errors::WmResult;
 use crate::wm::container::{Container, ContainerListNode};
@@ -23,7 +23,7 @@ impl LayoutType {
 impl<'a> Layout<'a> for LayoutType {
     fn apply(&self, screen: Geometry, cs: Vec<Rc<RefCell<ContainerListNode>>>) -> WmResult {
         if cs.is_empty() {
-            return Ok(())
+            return Ok(());
         }
 
         match &self {

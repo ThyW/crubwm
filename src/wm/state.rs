@@ -79,7 +79,7 @@ impl State {
     fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
         for workspace in &self.workspaces {
             if workspace.contains_wid(wid) {
-                return Some(&workspace)
+                return Some(&workspace);
             }
         }
 
@@ -91,7 +91,7 @@ impl State {
     fn workspace_for_window_mut(&mut self, wid: u32) -> Option<&mut Workspace> {
         for workspace in self.workspaces.iter_mut() {
             if workspace.contains_wid(wid) {
-                return Some(workspace)
+                return Some(workspace);
             }
         }
 
@@ -225,7 +225,7 @@ impl State {
 
                 let g = borrowed.data().geometry();
                 let wid_opt = borrowed.data().wid();
-                
+
                 let aux = g.into();
 
                 if let Some(wid) = wid_opt {

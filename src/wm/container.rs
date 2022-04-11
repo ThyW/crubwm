@@ -8,14 +8,14 @@ use std::{cell::RefCell, rc::Rc};
 /// Used to identify containers.
 pub struct ContainerId {
     workspace_id: u32,
-    container_id: u32
+    container_id: u32,
 }
 
 impl ContainerId {
     pub fn new<I: Into<u32>>(ws: I, new_id: I) -> Self {
         Self {
             workspace_id: ws.into(),
-            container_id: new_id.into()
+            container_id: new_id.into(),
         }
     }
 
@@ -180,7 +180,7 @@ impl ContainerList {
 
     fn new_id(&mut self) -> ContainerId {
         self.last_id += 1;
-        return ContainerId::new(self.workspace_id, self.last_id)
+        return ContainerId::new(self.workspace_id, self.last_id);
     }
 
     /// Get number of nodes in the list.
@@ -241,7 +241,10 @@ impl ContainerList {
         self.len == 0
     }
 
-    pub(crate) fn find<I: Into<ContainerId> + Copy>(&self, id: I) -> WmResult<Rc<RefCell<ContainerListNode>>> {
+    pub(crate) fn find<I: Into<ContainerId> + Copy>(
+        &self,
+        id: I,
+    ) -> WmResult<Rc<RefCell<ContainerListNode>>> {
         if self.is_empty() {
             return Err("container list error: container list is empty.".into());
         }
@@ -334,7 +337,7 @@ impl ContainerList {
 
     pub fn remove<I: Into<ContainerId> + Copy>(&mut self, id: I) -> WmResult {
         if self.is_empty() {
-            return Err("conatiner list error: contaier list is empty.".into())
+            return Err("conatiner list error: contaier list is empty.".into());
         }
         let node_rc = self.find(id)?;
 
@@ -355,7 +358,7 @@ impl ContainerList {
             node.next = None;
             node.prev = None;
         }
-        
+
         if node.prev.is_some() && node.next.is_none() {
             let prev = node.prev.as_ref().unwrap().clone();
 
