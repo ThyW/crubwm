@@ -9,6 +9,7 @@ pub(crate) trait Layout<'a> {
     fn apply(&self, screen: Geometry, cs: Vec<Rc<RefCell<ContainerListNode>>>) -> WmResult;
 }
 
+#[allow(unused)]
 pub enum LayoutType {
     TilingEqualHorizontal,
     TilingEqualVertical,

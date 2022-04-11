@@ -2,7 +2,7 @@ mod keybinds;
 mod options;
 mod start_hooks;
 
-use keybinds::*;
+pub use keybinds::*;
 use options::*;
 use start_hooks::*;
 

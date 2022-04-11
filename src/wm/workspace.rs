@@ -30,12 +30,12 @@ impl Workspace {
     }
 
     /// Contains a client with the given process id?
-    pub fn contains_pid(&self, pid: u32) -> bool {
+    pub fn _contains_pid(&self, pid: u32) -> bool {
         self.containers.id_for_pid(pid).is_ok()
     }
 
     /// Contains a client with the given container id?
-    pub fn contains<I: Into<ContainerId> + Copy>(&self, id: I) -> bool {
+    pub fn _contains<I: Into<ContainerId> + Copy>(&self, id: I) -> bool {
         self.containers.find(id.into()).is_ok()
     }
 
@@ -64,7 +64,7 @@ impl Workspace {
         Ok(())
     }
 
-    pub fn remove_pid(&mut self, wid: u32) -> WmResult {
+    pub fn _remove_pid(&mut self, wid: u32) -> WmResult {
         if let Ok(id) = self.containers.id_for_pid(wid) {
             self.containers.remove(id)?;
         };

@@ -4,7 +4,7 @@ use x11rb::{
 };
 
 use crate::{
-    config::Config,
+    config::{Config, Key},
     errors::WmResult,
     parsers::{Command, CommandType},
     wm::state::State,
@@ -82,10 +82,12 @@ impl Wm {
                 println!("X11Error: {:?}", e)
             }
             Event::KeyPress(e) => {
-                println!("Key press event: {:#x}", e.detail);
-                if e.detail == 0xa {
-                    let child = std::process::Command::new("xterm").spawn()?;
-                    println!("child id: {}", child.id());
+                let key: Key = e.detail.try_into()?;
+                println!("{:#?}", key);
+                if key == Key::Alt {
+                    std::process::Command::new("xterm")
+                        .env("DISPLAY", ":1")
+                        .spawn()?;
                 }
             }
             Event::CreateNotify(e) => {
@@ -98,6 +100,9 @@ impl Wm {
                     .into();
                 self.state.manage_window(e.window, g)?;
             }
+            Event::EnterNotify(e) => {
+                self.state.handle_enter_event(e.event)?;
+            }
             Event::Expose(e) => {
                 println!("expose event on window: {}", e.window);
             }
@@ -108,9 +113,7 @@ impl Wm {
                 println!("destory event: {:#?}", e);
                 self.state.unmanage_window(e.window)?;
             }
-            _ev => {
-                // println!("{:#?}", ev);
-            }
+            _ev => {}
         };
 
         Ok(())

@@ -10,7 +10,7 @@ use x11rb::{
 use crate::{errors::WmResult, wm::workspace::Workspaces};
 
 use super::{
-    container::{Client, ContainerId},
+    container::Client,
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
 };
@@ -20,8 +20,7 @@ pub struct State {
     screen_index: usize,
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
-    // TODO: could this just be a window id?
-    focused_client: Option<ContainerId>,
+    focused_client: Option<u32>,
 }
 
 impl State {
@@ -76,7 +75,7 @@ impl State {
 
     /// Go through all workspaces, if they contain a given window: return the reference to the
     /// workspace, otherwise don't return anything.
-    fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
+    fn _workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
         for workspace in &self.workspaces {
             if workspace.contains_wid(wid) {
                 return Some(&workspace);
@@ -132,7 +131,6 @@ impl State {
         Err("workspace could not be found".into())
     }
 
-    // TODO: rework this to work with manage window
     pub fn become_wm(&mut self) -> WmResult {
         // get all the subwindows of the root window
         let root = self.root_window();
@@ -230,10 +228,26 @@ impl State {
                 let aux = g.into();
 
                 if let Some(wid) = wid_opt {
-                    self.connection().configure_window(wid, &aux);
+                    self.connection().configure_window(wid, &aux)?;
                 };
             }
         }
+
+        Ok(())
+    }
+
+    pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
+        let _ = self.focused_client.insert(window);
+        let mut id = 0;
+
+        if let Some(ws) = self._workspace_for_window(window) {
+            id = ws.id
+        }
+
+        let _ = self.focused_workspace.insert(id);
+
+        self.connection().set_input_focus(x11rb::protocol::xproto::InputFocus::PARENT, window, x11rb::CURRENT_TIME)?;
+        self.connection().flush()?;
 
         Ok(())
     }

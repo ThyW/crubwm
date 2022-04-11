@@ -15,10 +15,8 @@ Xephyr -ac -screen 800x600 +extension GLX "${NDISPLAY}" &
 # save it's pid
 xephyr=$!
 
-# run the wm in the other display
+# run the wm on anoter display
 export DISPLAY="${NDISPLAY}"
-
-sleep 1
 
 # run the command specified in the command line arguments given to this script
 wm=""
