@@ -1,4 +1,5 @@
 use x11rb::protocol::xproto::GetGeometryReply;
+use x11rb::protocol::xproto::ConfigureWindowAux;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Geometry {
@@ -22,5 +23,16 @@ impl From<GetGeometryReply> for Geometry {
             border_width: g.border_width,
             height: g.height,
         }
+    }
+}
+
+impl From<Geometry> for ConfigureWindowAux {
+    fn from(g: Geometry) -> Self {
+        ConfigureWindowAux::new()
+            .x(Some(g.x as i32))
+            .y(Some(g.y as i32))
+            .width(Some(g.width as u32))
+            .height(Some(g.width as u32))
+            .border_width(Some(g.border_width as u32))
     }
 }
