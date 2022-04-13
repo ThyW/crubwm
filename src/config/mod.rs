@@ -1,6 +1,7 @@
 mod keybinds;
 mod options;
 mod start_hooks;
+pub mod keysyms;
 
 pub use keybinds::*;
 use options::*;
