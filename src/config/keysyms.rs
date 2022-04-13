@@ -66,6 +66,9 @@ impl Keysym {
         let value =
             unsafe { XStringToKeysym(cstring.as_c_str().as_ptr()) };
         let ptr = unsafe { XKeysymToString(value) };
+        if ptr.is_null() {
+            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into())
+        }
         let name = unsafe {std::ffi::CStr::from_ptr(ptr).to_str()?.to_string()};
         Ok(Keysym::new(name, value))
     }
@@ -73,6 +76,9 @@ impl Keysym {
     pub fn keysym_from_keycode(dpy: *mut Display, keycode: Keycode, mods: i32) -> WmResult<Keysym> {
         let value = unsafe { XKeycodeToKeysym(dpy, keycode, mods) };
         let raw_str = unsafe { XKeysymToString(value) };
+        if raw_str.is_null() {
+            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into())
+        }
         let name = unsafe { std::ffi::CStr::from_ptr(raw_str).to_str()?.to_string() };
 
         Ok(Keysym::new_full(name, value, Some(keycode)))
@@ -89,6 +95,7 @@ mod tests {
     fn lookup() {
         let dpy = unsafe {XOpenDisplay(std::ptr::null())};
 
-        assert!(Keysym::lookup_string(dpy, "Scroll_Lock").is_ok())
+        assert!(Keysym::lookup_string(dpy, "Scroll_Lock").is_ok());
+        assert!(Keysym::lookup_string(dpy, "control_l").is_err())
     }
 }
