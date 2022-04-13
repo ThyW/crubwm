@@ -82,7 +82,7 @@ impl State {
     fn _workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
         for workspace in &self.workspaces {
             if workspace.contains_wid(wid) {
-                return Some(&workspace);
+                return Some(workspace);
             }
         }
 

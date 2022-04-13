@@ -87,10 +87,10 @@ impl Workspace {
 
         for id in ids {
             let node_result = self.containers.find(id);
-            if node_result.is_ok() {
-                let n = node_result.as_ref().unwrap().clone();
+            if let Ok(nnode) = node_result {
+                let n = nnode.clone();
                 if let Ok(node) = n.try_borrow() {
-                    ret.push(Some((node.data().wid().unwrap(), node_result.unwrap())))
+                    ret.push(Some((node.data().wid().unwrap(), nnode)))
                 };
             } else {
                 ret.push(None)

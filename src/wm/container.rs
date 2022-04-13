@@ -112,9 +112,9 @@ impl Container {
 
     pub fn geometry(&self) -> Geometry {
         match self {
-            Self::Empty(g) => g.clone(),
-            Self::InLayout(c) => c.geometry.clone(),
-            Self::Floating(c) => c.geometry.clone(),
+            Self::Empty(g) => *g,
+            Self::InLayout(c) => c.geometry,
+            Self::Floating(c) => c.geometry,
         }
     }
 
@@ -180,7 +180,7 @@ impl ContainerList {
 
     fn new_id(&mut self) -> ContainerId {
         self.last_id += 1;
-        return ContainerId::new(self.workspace_id, self.last_id);
+        ContainerId::new(self.workspace_id, self.last_id)
     }
 
     /// Get number of nodes in the list.
@@ -205,7 +205,7 @@ impl ContainerList {
         } else {
             let node_rc = new_rc(node);
             self.first = Some(node_rc.clone());
-            self.last = Some(node_rc.clone())
+            self.last = Some(node_rc)
         }
 
         self.len += 1;
@@ -228,7 +228,7 @@ impl ContainerList {
         } else {
             let node_rc = new_rc(node);
             self.first = Some(node_rc.clone());
-            self.last = Some(node_rc.clone())
+            self.last = Some(node_rc)
         }
 
         self.len += 1;
@@ -398,14 +398,10 @@ impl Iterator for IterCursor {
     fn next(&mut self) -> Option<Self::Item> {
         match self.curr.as_ref().unwrap().try_borrow() {
             Ok(i) => {
-                if let Some(next) = &i.next {
-                    return Some(next.clone());
-                } else {
-                    return None;
-                }
+                i.next.as_ref().cloned()
             }
-            Err(_) => return None,
-        };
+            Err(_) => None,
+        }
     }
 }
 
