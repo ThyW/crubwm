@@ -9,11 +9,10 @@ pub fn get_keysym(dpy: *mut Display, keycode: Keycode, mods: i32) -> WmResult<u6
     Ok(out)
 }
 
-pub fn get_keysym_str(dpy: *mut Display, keysym: u64) -> WmResult<String> {
+pub fn get_keysym_str(keysym: u64) -> WmResult<String> {
     let out = unsafe { XKeysymToString(keysym) };
 
-    let mut count = 0;
-    let cstr = unsafe { std::ffi::CString::from_raw(out) };
+    let cstr = unsafe { std::ffi::CStr::from_ptr(out) };
 
-    Ok(String::from_utf8(cstr).unwrap_or("error".to_string()))
+    Ok(cstr.to_str()?.to_string())
 }

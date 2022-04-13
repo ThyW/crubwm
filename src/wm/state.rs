@@ -1,3 +1,4 @@
+use x11::xlib::{Display, XOpenDisplay};
 use x11rb::{
     connect,
     connection::Connection,
@@ -17,6 +18,7 @@ use super::{
 
 pub struct State {
     connection: RustConnection,
+    dpy: *mut Display,
     screen_index: usize,
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
@@ -30,6 +32,7 @@ impl State {
     /// DISPLAY environmental variable.
     pub fn new(_name: Option<&str>) -> WmResult<Self> {
         let (conn, screen_index) = connect(None)?;
+        let display = unsafe { XOpenDisplay(std::ptr::null()) };
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
@@ -48,6 +51,7 @@ impl State {
 
         Ok(Self {
             connection: conn,
+            dpy: display,
             screen_index,
             workspaces: Vec::new(),
             focused_workspace: None,
@@ -246,9 +250,17 @@ impl State {
 
         let _ = self.focused_workspace.insert(id);
 
-        self.connection().set_input_focus(x11rb::protocol::xproto::InputFocus::PARENT, window, x11rb::CURRENT_TIME)?;
+        self.connection().set_input_focus(
+            x11rb::protocol::xproto::InputFocus::PARENT,
+            window,
+            x11rb::CURRENT_TIME,
+        )?;
         self.connection().flush()?;
 
         Ok(())
+    }
+
+    pub fn display(&mut self) -> *mut Display {
+        self.dpy
     }
 }

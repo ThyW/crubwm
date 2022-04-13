@@ -4,7 +4,7 @@ use x11rb::{
 };
 
 use crate::{
-    config::{Config, Key},
+    config::Config,
     errors::WmResult,
     parsers::{Command, CommandType},
     wm::state::State,
@@ -82,13 +82,10 @@ impl Wm {
                 println!("X11Error: {:?}", e)
             }
             Event::KeyPress(e) => {
-                let key: Key = e.detail.try_into()?;
-                println!("{:#?}", key);
-                if key == Key::Alt {
-                    std::process::Command::new("xterm")
-                        .env("DISPLAY", ":1")
-                        .spawn()?;
-                }
+                use crate::config::keysyms::*;
+                let keysym = get_keysym(self.state.display(), e.detail, 0)?;
+                let str = get_keysym_str(keysym)?;
+                println!("{}", str)
             }
             Event::CreateNotify(e) => {
                 println!("root window geometry: {}", self.state.root_geometry()?);

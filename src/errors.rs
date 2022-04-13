@@ -4,6 +4,8 @@ pub enum Error {
     Io(std::io::Error),
     ParseBool(std::str::ParseBoolError),
     ParseInt(std::num::ParseIntError),
+    FromUtf8(std::string::FromUtf8Error),
+    Utf8(std::str::Utf8Error),
     X11Connect(x11rb::errors::ConnectError),
     X11Connection(x11rb::errors::ConnectionError),
     X11Reply(x11rb::errors::ReplyError),
@@ -70,6 +72,18 @@ impl From<std::cell::BorrowMutError> for Error {
     }
 }
 
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(e: std::string::FromUtf8Error) -> Self {
+        Self::FromUtf8(e)
+    }
+}
+
+impl From<std::str::Utf8Error> for Error {
+    fn from(e: std::str::Utf8Error) -> Self {
+        Self::Utf8(e)
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -81,7 +95,9 @@ impl std::fmt::Display for Error {
             Self::BorrowMut(e) => write!(f, "{}", e),
             Self::X11Connect(e) => write!(f, "{}", e),
             Self::X11Reply(e) => write!(f, "{}", e),
-            Self::X11Connection(e) => write!(f, "{}", e)
+            Self::X11Connection(e) => write!(f, "{}", e),
+            Self::FromUtf8(e) => write!(f, "{}", e),
+            Self::Utf8(e) => write!(f, "{}", e)
         }
     }
 }
