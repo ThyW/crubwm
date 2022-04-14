@@ -20,7 +20,7 @@ export DISPLAY="${NDISPLAY}"
 
 # run the command specified in the command line arguments given to this script
 wm=""
-if [[ $1 = "--default" ]]; then
+if [[ $1 = "default" ]]; then
     cargo run -- --config test-config
     wm=$!
 else

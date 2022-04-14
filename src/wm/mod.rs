@@ -4,7 +4,7 @@ use x11rb::{
 };
 
 use crate::{
-    config::{Config, Key},
+    config::Config,
     errors::WmResult,
     parsers::{Command, CommandType},
     wm::state::State,
@@ -16,6 +16,7 @@ mod geometry;
 mod layouts;
 mod state;
 mod workspace;
+mod keyman;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");
@@ -43,7 +44,8 @@ impl Wm {
             false => None,
         };
 
-        let state = State::new(display_name)?;
+        let mut state = State::new(display_name)?;
+        state.init_keyman(config.keybinds.clone());
         Ok(Self { config, state })
     }
 
@@ -82,14 +84,11 @@ impl Wm {
                 println!("X11Error: {:?}", e)
             }
             Event::KeyPress(e) => {
-                use crate::config::keysyms::Keysym;
-                let name = Keysym::keysym_from_keycode(self.state.display(), e.detail, 0)?.name();
-                let key = Key::from_str(&name);
+                self.state.handle_key_press(&e)?
+            }
 
-                if let Err(e) = key {
-                    println!("{}", e);
-                    println!("{}", name);
-                }
+            Event::KeyRelease(e) => {
+                self.state.handle_key_release(&e)?
             }
             Event::CreateNotify(e) => {
                 println!("root window geometry: {}", self.state.root_geometry()?);

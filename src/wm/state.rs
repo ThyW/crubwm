@@ -3,12 +3,12 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, Screen,
+        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, Screen, KeyPressEvent, KeyReleaseEvent,
     },
     rust_connection::RustConnection,
 };
 
-use crate::{errors::WmResult, wm::workspace::Workspaces};
+use crate::{errors::WmResult, wm::workspace::Workspaces, wm::keyman::KeyManager, config::Keybinds};
 
 use super::{
     container::Client,
@@ -23,6 +23,7 @@ pub struct State {
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
     focused_client: Option<u32>,
+    key_manager: KeyManager,
 }
 
 impl State {
@@ -33,10 +34,14 @@ impl State {
     pub fn new(_name: Option<&str>) -> WmResult<Self> {
         let (conn, screen_index) = connect(None)?;
         let display = unsafe { XOpenDisplay(std::ptr::null()) };
+        if display.is_null() {
+            return Err("x11 error: unable to open a connetion to X server.".into());
+        }
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
             EventMask::KEY_PRESS
+                | EventMask::KEY_RELEASE
                 | EventMask::SUBSTRUCTURE_NOTIFY
                 | EventMask::SUBSTRUCTURE_REDIRECT
                 | EventMask::BUTTON_PRESS
@@ -56,7 +61,12 @@ impl State {
             workspaces: Vec::new(),
             focused_workspace: None,
             focused_client: None,
+            key_manager: KeyManager::default(),
         })
+    }
+
+    pub fn init_keyman(&mut self, binds: Keybinds) {
+        self.key_manager.set_keybinds(binds)
     }
 
     /// Get the information about the current root of our display.
@@ -240,6 +250,7 @@ impl State {
         Ok(())
     }
 
+    /// 
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
         let _ = self.focused_client.insert(window);
         let mut id = 0;
@@ -257,6 +268,22 @@ impl State {
         )?;
         self.connection().flush()?;
 
+        Ok(())
+    }
+
+    pub fn handle_key_press(&mut self, ev: &KeyPressEvent) -> WmResult {
+        let disp = self.display();
+        let out = self.key_manager.key_press(ev, disp)?;
+        if let Some(action) = out {
+            println!("{:#?}", action);
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_key_release(&mut self, ev: &KeyReleaseEvent) -> WmResult {
+        let d = self.display();
+        self.key_manager.key_release(ev, d)?;
         Ok(())
     }
 

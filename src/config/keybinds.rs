@@ -1,6 +1,6 @@
 use crate::{errors::WmResult, wm::actions::Action};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Keybinds(Vec<Keybind>);
 
 impl Default for Keybinds {
@@ -35,6 +35,20 @@ impl Keybinds {
         self.0.push(keybind);
         Ok(())
     }
+
+    pub fn _extend(&mut self, from: Vec<Keybind>) {
+        self.0.extend(from)
+    }
+
+    pub fn get_names_and_actions(&mut self) -> Vec<(Vec<&'_ str>, Action)> {
+        let mut ret = Vec::with_capacity(self.0.len());
+        for each in &self.0 {
+            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.to_x11_str()).collect();
+            ret.push((names, each.action.clone()))
+        }
+
+        ret
+    }
 }
 
 // TODO: Keys have to be able to be turned into a X-Keysym-name compatible strings, in order to be
@@ -58,7 +72,6 @@ pub enum Key {
     F11,
     F12,
     Print,
-    SrollLock,
     Pause,
     Backtick,
     Key1,
@@ -161,6 +174,116 @@ impl Key {
         Ok(ret)
     }
 
+    pub fn to_x11_str(&self) -> &'_ str {
+        match self {
+            Key::Esc => "Escape",
+            Key::Key1 => "1",
+            Key::Key2 => "2",
+            Key::Key3 => "3",
+            Key::Key4 => "4",
+            Key::Key5 => "5",
+            Key::Key6 => "6",
+            Key::Key7 => "7",
+            Key::Key8 => "8",
+            Key::Key9 => "9",
+            Key::Key0 => "0",
+            Key::Minus => "minus",
+            Key::Equals => "equal",
+            Key::Backspace => "BackSpace",
+            Key::Tab => "Tab",
+            Key::KeyQ => "q",
+            Key::KeyW => "w",
+            Key::KeyE => "e",
+            Key::KeyR => "r",
+            Key::KeyT => "t",
+            Key::KeyY => "y",
+            Key::KeyU => "u",
+            Key::KeyI => "i",
+            Key::KeyO => "o",
+            Key::KeyP => "p",
+            Key::LeftAngleBracket => "bracketleft",
+            Key::RightAngleBracket => "bracketright",
+            Key::Enter => "Return",
+            Key::Ctrl => "Control_L",
+            Key::KeyA => "a",
+            Key::KeyS => "s",
+            Key::KeyD => "d",
+            Key::KeyF => "f",
+            Key::KeyG => "g",
+            Key::KeyH => "h",
+            Key::KeyJ => "j",
+            Key::KeyK => "k",
+            Key::KeyL => "l",
+            Key::Semicolon => "semicolon",
+            Key::Quote => "apostrophe",
+            Key::Backtick => "grave",
+            Key::LShift => "Shift_L",
+            Key::Backslash => "backslash",
+            Key::KeyZ => "z",
+            Key::KeyX => "x",
+            Key::KeyC => "c",
+            Key::KeyV => "v",
+            Key::KeyB => "b",
+            Key::KeyN => "n",
+            Key::KeyM => "m",
+            Key::Colon => "comma",
+            Key::Period => "period",
+            Key::Slash => "slash",
+            Key::RShift => "Shift_R",
+            Key::NumMultiply => "KP_Multiply",
+            Key::Alt => "Alt_L",
+            Key::Space => "space",
+            Key::CapsLock => "Caps_Lock",
+            Key::F1 => "F1",
+            Key::F2 => "F2",
+            Key::F3 => "F3",
+            Key::F4 => "F4",
+            Key::F5 => "F5",
+            Key::F6 => "F6",
+            Key::F7 => "F7",
+            Key::F8 => "F8",
+            Key::F9 => "F9",
+            Key::F10 => "F10",
+            Key::NumLock => "Num_Lock",
+            Key::ScrollLock => "Scroll_Lock",
+            Key::NumSubstract => "KP_Subtract",
+            Key::NumAdd => "KP_Add",
+            Key::Num7 => "KP_Home",
+            Key::Num8 => "KP_Up",
+            Key::Num9 => "KP_Prior",
+            Key::Num4 => "KP_Left",
+            Key::Num5 => "KP_Begin",
+            Key::Num6 => "KP_Right",
+            Key::Num1 => "KP_End",
+            Key::Num2 => "KP_Down",
+            Key::Num3 => "KP_Next",
+            Key::Num0 => "KP_Insert",
+            Key::NumDecimal => "KP_Delete",
+            Key::F11 => "F11",
+            Key::F12 => "F12",
+            Key::NumEnter => "KP_Enter",
+            Key::RCtrl => "Control_R",
+            Key::NumDivide => "KP_Divide",
+            Key::Print => "Print",
+            Key::RAlt => "Alt_R",
+            Key::Home => "Home",
+            Key::Up => "Up",
+            Key::Prior => "Prior",
+            Key::Left => "Left",
+            Key::Right => "Right",
+            Key::End => "End",
+            Key::Down => "Down",
+            Key::Next => "Next",
+            Key::Insert => "Insert",
+            Key::Delete => "Delete",
+            Key::Pause => "Pause",
+            Key::Mod => "Super_L",
+            Key::Menu => "Menu",
+            Key::Fn => "Fn key",
+            Key::Noop => "Noop",
+        }
+    }
+
     pub fn from_str(s: &str) -> WmResult<Self> {
         let key = match s.to_lowercase().as_str() {
             "esc" | "escape" => Key::Esc,
@@ -195,7 +318,7 @@ impl Key {
             "backspace" => Key::Backspace,
             "insert" => Key::Insert,
             "home" => Key::Home,
-            "pgup" | "pageup" | "prior"=> Key::Prior,
+            "pgup" | "pageup" | "prior" => Key::Prior,
             "numlock" => Key::NumLock,
             "numdivide" => Key::NumDivide,
             "nummultiply" => Key::NumMultiply,
@@ -249,14 +372,14 @@ impl Key {
             "." | "period" => Key::Period,
             "/" | "slash" => Key::Slash,
             "shift_r" | "rshift" => Key::RShift,
-            "up"=> Key::Up,
+            "up" => Key::Up,
             "num1" => Key::Num1,
             "num2" => Key::Num2,
             "num3" => Key::Num3,
             "numenter" => Key::NumEnter,
             "ctrl" | "control_l" | "lctrl" | "C" => Key::Ctrl,
             "super_l" | "mod" => Key::Mod,
-            "alt_l" |"alt" => Key::Alt,
+            "alt_l" | "alt" => Key::Alt,
             "space" => Key::Space,
             "alt_r" | "ralt" => Key::RAlt,
             "fn" => Key::Fn,
@@ -274,7 +397,7 @@ impl Key {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct Keybind {
     keys: Vec<Key>,

@@ -1,6 +1,6 @@
 use crate::errors::{Error, WmResult};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Down,
@@ -24,7 +24,7 @@ impl TryFrom<&str> for Direction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Action {
     /// A noop, doesn't do anything.
     Noop,
