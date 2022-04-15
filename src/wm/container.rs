@@ -110,6 +110,7 @@ impl Container {
         None
     }
 
+    /// Get the client geometry.
     pub fn geometry(&self) -> Geometry {
         match self {
             Self::Empty(g) => *g,
@@ -118,6 +119,7 @@ impl Container {
         }
     }
 
+    /// Return client window id, if the container is empty, retrun `None`.
     pub fn wid(&self) -> Option<u32> {
         match self {
             Self::Empty(_) => None,

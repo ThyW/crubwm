@@ -1,6 +1,6 @@
 use x11rb::{
     connection::Connection,
-    protocol::{xproto::ConnectionExt, Event},
+    protocol::Event,
 };
 
 use crate::{
@@ -13,10 +13,10 @@ use crate::{
 pub mod actions;
 mod container;
 mod geometry;
+mod keyman;
 mod layouts;
 mod state;
 mod workspace;
-mod keyman;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");
@@ -26,13 +26,13 @@ fn print_help_message() {
 }
 
 #[allow(dead_code)]
-/// The WM struct, holding all the necessary state and information for and about the opperation of
+/// The WM struct, holding all the necessary state and information for and about the operation of
 /// the window manager.
 pub struct Wm {
     /// The configuration of the window manager, holding all keybinds, hooks and settings.
     config: crate::config::Config,
     /// Window manager's state. Holds information about X server connection, clients, workspaces
-    /// geomoteries, etc...
+    /// geometries, etc...
     state: State,
 }
 
@@ -44,8 +44,9 @@ impl Wm {
             false => None,
         };
 
-        let mut state = State::new(display_name)?;
-        state.init_keyman(config.keybinds.clone());
+        // create the state manager here.
+        let state = State::new(display_name)?;
+
         Ok(Self { config, state })
     }
 
@@ -59,9 +60,12 @@ impl Wm {
             }
         }
 
+        // instantiate workspaces
         self.state.init_workspaces();
+        // check for all open windows and manage them
         self.state.become_wm()?;
-        // also grab keys, properties and more
+        // notify the window manager of the keybinds
+        self.state.init_keyman(self.config.keybinds.clone())?;
 
         loop {
             self.state.connection().flush()?;
@@ -83,22 +87,12 @@ impl Wm {
             Event::Error(e) => {
                 println!("X11Error: {:?}", e)
             }
-            Event::KeyPress(e) => {
-                self.state.handle_key_press(&e)?
-            }
+            Event::KeyPress(e) => self.state.handle_key_press(&e)?,
 
-            Event::KeyRelease(e) => {
-                self.state.handle_key_release(&e)?
-            }
+            Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
             Event::CreateNotify(e) => {
                 println!("root window geometry: {}", self.state.root_geometry()?);
-                let g = self
-                    .state
-                    .connection()
-                    .get_geometry(e.window)?
-                    .reply()?
-                    .into();
-                self.state.manage_window(e.window, g)?;
+                self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
                 self.state.handle_enter_event(e.event)?;
@@ -110,7 +104,6 @@ impl Wm {
                 println!("unmap event: {:#?}", e)
             }
             Event::DestroyNotify(e) => {
-                println!("destory event: {:#?}", e);
                 self.state.unmanage_window(e.window)?;
             }
             _ev => {}

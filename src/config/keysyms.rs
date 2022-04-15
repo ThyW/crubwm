@@ -1,6 +1,7 @@
 use crate::errors::WmResult;
 
 use x11::xlib::{Display, XKeycodeToKeysym, XKeysymToKeycode, XKeysymToString, XStringToKeysym};
+use x11::keysym::{XK_Super_R, XK_Super_L, XK_Shift_L, XK_Shift_R, XK_Alt_R, XK_Alt_L, XK_Control_R, XK_Control_L, XK_Caps_Lock, XK_Meta_L, XK_Meta_R};
 use x11rb::protocol::xproto::Keycode;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -44,6 +45,33 @@ impl Keysym {
     /// Return the actuall value of the Keysym, as defined in the `X11/keysymdef.h` header
     pub fn value(&self) -> u64 {
         self.value
+    }
+
+    /// Checks if the Keysym is a Modifier key, for example shift, super key or alt.
+    #[allow(non_upper_case_globals)]
+    pub fn is_mod(&self) -> bool {
+        return match self.value() as u32 {
+            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Alt_L | XK_Alt_R | XK_Shift_L | XK_Shift_R => true,
+            _ => false,
+        };
+    }
+
+
+    /// Returh the mask value of the keysym, if it is a mod key.
+    #[allow(non_upper_case_globals)]
+    pub fn mod_mask(&self) -> u16 {
+        if self.is_mod() {
+            return match self.value() as u32 {
+                XK_Shift_R | XK_Shift_L => 1 << 0,
+                XK_Caps_Lock => 1 << 1,
+                XK_Control_R | XK_Control_L => 1 << 2,
+                XK_Meta_L | XK_Meta_R => 1 << 3,
+                XK_Super_L | XK_Shift_R => 1 << 6,
+                _ => 0,
+            }
+        }
+
+        return 0;
     }
 
     /// A reverse process of trying to get a Keycode from a Keysym.

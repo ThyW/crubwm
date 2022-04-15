@@ -3,14 +3,18 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, Screen, KeyPressEvent, KeyReleaseEvent,
+        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, GrabMode,
+        KeyPressEvent, KeyReleaseEvent, Screen,
     },
     rust_connection::RustConnection,
 };
 
-use crate::{errors::WmResult, wm::workspace::Workspaces, wm::keyman::KeyManager, config::Keybinds};
+use crate::{
+    config::Keybinds, errors::WmResult, wm::keyman::KeyManager, wm::workspace::Workspaces,
+};
 
 use super::{
+    actions::Action,
     container::Client,
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
@@ -65,8 +69,20 @@ impl State {
         })
     }
 
-    pub fn init_keyman(&mut self, binds: Keybinds) {
-        self.key_manager.set_keybinds(binds)
+    /// Initiate the `KeyManager` with the Keybindings loaded in from a configuration file.
+    pub fn init_keyman(&mut self, binds: Keybinds) -> WmResult {
+        self.key_manager.set_keybinds(binds);
+        let dpy = self.display();
+        let codes = self.key_manager.grab_codes(dpy)?;
+
+        for pair in codes {
+            for code in pair.1 {
+                println!("grabbing key: {code} with mod {}", pair.0);
+                self.connection()
+                    .grab_key(true, self.root_window(), (1 << 0) as u16, code, GrabMode::ASYNC, GrabMode::ASYNC)?;
+            }
+        }
+        Ok(())
     }
 
     /// Get the information about the current root of our display.
@@ -117,6 +133,10 @@ impl State {
     }
 
     // TODO: names and ids should be loaded from config.
+    /// Handle the creation and initiation of workspaces.
+    ///
+    /// In the future, this method should be loading workspace names, ids and indices from the
+    /// Config structure.
     pub fn init_workspaces(&mut self) {
         for i in 0..11 {
             self.workspaces.push(Workspace::new(format!("{i}"), i));
@@ -125,7 +145,8 @@ impl State {
         self.focused_workspace = Some(self.workspaces[0].id);
     }
 
-    pub fn get_focused_ws(&mut self) -> WmResult<&Workspace> {
+    // Get a reference to the focused workspace.
+    fn get_focused_ws(&mut self) -> WmResult<&Workspace> {
         if let Some(id) = self.focused_workspace {
             if let Some(ws) = self.workspaces.iter().find(|ws| ws.id == id) {
                 return Ok(ws);
@@ -135,7 +156,8 @@ impl State {
         Err("workspace could not be found".into())
     }
 
-    pub fn get_focused_ws_mut(&mut self) -> WmResult<&mut Workspace> {
+    // Get a mutable reference to the focused workspace.
+    fn get_focused_ws_mut(&mut self) -> WmResult<&mut Workspace> {
         if let Some(id) = self.focused_workspace {
             if let Some(ws) = self.workspaces.iter_mut().find(|ws| ws.id == id) {
                 return Ok(ws);
@@ -145,6 +167,7 @@ impl State {
         Err("workspace could not be found".into())
     }
 
+    /// Become a window manager, take control of all open windows in the X server.
     pub fn become_wm(&mut self) -> WmResult {
         // get all the subwindows of the root window
         let root = self.root_window();
@@ -167,7 +190,8 @@ impl State {
     }
 
     /// Let a window be managed by the window manager.
-    pub fn manage_window(&mut self, wid: u32, geometry: Geometry) -> WmResult {
+    pub fn manage_window(&mut self, wid: u32) -> WmResult {
+        let geometry = self.connection().get_geometry(wid)?.reply()?.into();
         let rg = self.root_geometry()?;
         let ws_container_id = self
             .get_focused_ws_mut()?
@@ -180,6 +204,7 @@ impl State {
 
         let aux: ConfigureWindowAux = g.into();
 
+        self.connection().reparent_window(wid, self.root_window(), 0, 0)?;
         self.connection().configure_window(wid, &aux)?;
         self.connection().map_window(wid)?;
 
@@ -187,6 +212,8 @@ impl State {
     }
 
     /// Let multiple windows be managed by the window manager.
+    ///
+    /// For performance sake, this method does not call `manage_window` internally.
     pub fn manage_windows(&mut self, data: Vec<(u32, Geometry)>) -> WmResult {
         let rg = self.root_geometry()?;
         let ids = self.get_focused_ws_mut()?.insert_many(
@@ -250,7 +277,11 @@ impl State {
         Ok(())
     }
 
-    /// 
+    /// Handle a enter window event.
+    ///
+    /// This method is responsible for switching input focus to the newly entered window.
+    /// In the future, this will also handle the decorators, WM properties and other necessary
+    /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
         let _ = self.focused_client.insert(window);
         let mut id = 0;
@@ -271,23 +302,56 @@ impl State {
         Ok(())
     }
 
+    /// Handle a key press event.
     pub fn handle_key_press(&mut self, ev: &KeyPressEvent) -> WmResult {
         let disp = self.display();
+        println!("{}", ev.state);
         let out = self.key_manager.key_press(ev, disp)?;
         if let Some(action) = out {
-            println!("{:#?}", action);
+            self.do_action(action)?
         }
 
         Ok(())
     }
 
+    /// Handle a key release event.
     pub fn handle_key_release(&mut self, ev: &KeyReleaseEvent) -> WmResult {
         let d = self.display();
         self.key_manager.key_release(ev, d)?;
         Ok(())
     }
 
-    pub fn display(&mut self) -> *mut Display {
+    // Get a pointer to Xlib display structure. This method is used for handling keyboard
+    // events(KeyPress and KeyRelease events).
+    fn display(&mut self) -> *mut Display {
         self.dpy
+    }
+
+    /// Handle the execution of a given action.
+    pub fn do_action(&mut self, a: Action) -> WmResult {
+        match a {
+            Action::Noop => {}
+            Action::Kill => {
+                // self.handle_action_kill()?
+            }
+            Action::Goto(_direction) => {
+                // self.handle_action_goto(direction)?
+            }
+            Action::Move(_direction) => {
+                // self.handle_action_move(direction)?
+            }
+            Action::Execute(command) => self.handle_action_execute(command)?,
+            Action::Focus(_direction) => {
+                // self.handle_action_focus(direction)?
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_action_execute(&mut self, command: String) -> WmResult {
+        let _ = std::process::Command::new(command).spawn()?;
+
+        Ok(())
     }
 }

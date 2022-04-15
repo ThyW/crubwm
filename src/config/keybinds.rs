@@ -49,6 +49,16 @@ impl Keybinds {
 
         ret
     }
+
+    pub fn get_names(&self) -> Vec<Vec<&str>> {
+        let mut ret = Vec::new();
+        for each in &self.0 {
+            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.to_x11_str()).collect();
+            ret.push(names)
+        }
+
+        ret
+    }
 }
 
 // TODO: Keys have to be able to be turned into a X-Keysym-name compatible strings, in order to be
