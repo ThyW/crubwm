@@ -1,4 +1,4 @@
-keybind "<Shift><l>" execute "xterm"
+keybind "<Alt><l>" execute "xterm"
 keybind "<Alt>1" goto "1"
 keybind "<Alt><Shift>1" move "1"
 keybind "<Alt><up>" focus "up"

@@ -1,8 +1,27 @@
 use crate::errors::WmResult;
 
+use std::ffi::CStr;
+
+use x11::keysym::{
+    XK_Alt_L, XK_Alt_R, XK_Caps_Lock, XK_Control_L, XK_Control_R, XK_Meta_L, XK_Meta_R, XK_Shift_L,
+    XK_Shift_R, XK_Super_L, XK_Super_R,
+};
 use x11::xlib::{Display, XKeycodeToKeysym, XKeysymToKeycode, XKeysymToString, XStringToKeysym};
-use x11::keysym::{XK_Super_R, XK_Super_L, XK_Shift_L, XK_Shift_R, XK_Alt_R, XK_Alt_L, XK_Control_R, XK_Control_L, XK_Caps_Lock, XK_Meta_L, XK_Meta_R};
 use x11rb::protocol::xproto::Keycode;
+
+const MODS: [u32; 11] = [
+    XK_Super_R,
+    XK_Super_L,
+    XK_Shift_L,
+    XK_Shift_R,
+    XK_Alt_R,
+    XK_Alt_L,
+    XK_Control_R,
+    XK_Control_L,
+    XK_Caps_Lock,
+    XK_Meta_L,
+    XK_Meta_R,
+];
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Keysym {
@@ -17,7 +36,11 @@ impl Keysym {
     ///
     /// You can get the keycode by using the `try_get_keycode` method.
     pub fn new(name: String, value: u64) -> Self {
-        Self { name, value, code: None }
+        Self {
+            name,
+            value,
+            code: None,
+        }
     }
 
     fn new_full(name: String, value: u64, code: Option<u8>) -> Self {
@@ -36,7 +59,7 @@ impl Keysym {
     /// If no keycode is avaliable, return 0
     pub fn code(&self) -> u8 {
         if let Some(c) = self.code {
-            return c
+            return c;
         }
 
         0
@@ -51,11 +74,11 @@ impl Keysym {
     #[allow(non_upper_case_globals)]
     pub fn is_mod(&self) -> bool {
         return match self.value() as u32 {
-            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Alt_L | XK_Alt_R | XK_Shift_L | XK_Shift_R => true,
+            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Alt_L | XK_Alt_R
+            | XK_Shift_L | XK_Shift_R => true,
             _ => false,
         };
     }
-
 
     /// Returh the mask value of the keysym, if it is a mod key.
     #[allow(non_upper_case_globals)]
@@ -68,7 +91,7 @@ impl Keysym {
                 XK_Meta_L | XK_Meta_R => 1 << 3,
                 XK_Super_L | XK_Shift_R => 1 << 6,
                 _ => 0,
-            }
+            };
         }
 
         return 0;
@@ -88,16 +111,15 @@ impl Keysym {
     /// Given a string, for example 'a', try to create a keysym out of it.
     ///
     /// This function uses the `new` method, which means that the Keysym created this way won't
-    /// have a Keycode. Use the `try_get_keysym` method to get it's Keycode.
+    /// have a Keycode. Use the `try_get_keycode` method to get it's Keycode.
     pub fn lookup_string<S: AsRef<str>>(dpy: *mut Display, str: S) -> WmResult<Self> {
         let cstring = unsafe { std::ffi::CString::new(str.as_ref()).unwrap() };
-        let value =
-            unsafe { XStringToKeysym(cstring.as_c_str().as_ptr()) };
+        let value = unsafe { XStringToKeysym(cstring.as_c_str().as_ptr()) };
         let ptr = unsafe { XKeysymToString(value) };
         if ptr.is_null() {
-            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into())
+            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into());
         }
-        let name = unsafe {std::ffi::CStr::from_ptr(ptr).to_str()?.to_string()};
+        let name = unsafe { std::ffi::CStr::from_ptr(ptr).to_str()?.to_string() };
         Ok(Keysym::new(name, value))
     }
     /// Given a connection to Xlib and a keycode, attempt to get a Keysym.
@@ -105,11 +127,30 @@ impl Keysym {
         let value = unsafe { XKeycodeToKeysym(dpy, keycode, mods) };
         let raw_str = unsafe { XKeysymToString(value) };
         if raw_str.is_null() {
-            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into())
+            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into());
         }
         let name = unsafe { std::ffi::CStr::from_ptr(raw_str).to_str()?.to_string() };
 
         Ok(Keysym::new_full(name, value, Some(keycode)))
+    }
+
+    /// Return a list of modifier keysyms.
+    pub fn init_mods() -> WmResult<Vec<Keysym>> {
+        let mut ret: Vec<Keysym> = Vec::new();
+
+        for mod_key in MODS {
+            let cstr = unsafe {
+                let ptr = XKeysymToString(mod_key.into());
+                CStr::from_ptr(ptr)
+            };
+
+            let string = cstr.to_str()?.to_string();
+            let keysym = Keysym::new(string, mod_key.into());
+
+            ret.push(keysym)
+        }
+
+        Ok(ret)
     }
 }
 
@@ -121,7 +162,7 @@ mod tests {
 
     #[test]
     fn lookup() {
-        let dpy = unsafe {XOpenDisplay(std::ptr::null())};
+        let dpy = unsafe { XOpenDisplay(std::ptr::null()) };
 
         assert!(Keysym::lookup_string(dpy, "Scroll_Lock").is_ok());
         assert!(Keysym::lookup_string(dpy, "control_l").is_err())

@@ -90,6 +90,7 @@ impl Wm {
             Event::KeyPress(e) => self.state.handle_key_press(&e)?,
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
+            // TODO: maybe experiment and see if MapRequest is not good enough
             Event::CreateNotify(e) => {
                 println!("root window geometry: {}", self.state.root_geometry()?);
                 self.state.manage_window(e.window)?;

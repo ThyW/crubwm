@@ -1,11 +1,8 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
 use crate::errors::WmResult;
 
-use super::container::{Client, ContainerId, ContainerList, ContainerListNode};
+use super::container::{Client, Container, ContainerId, ContainerList};
 
 pub struct Workspace {
     pub containers: ContainerList,
@@ -39,21 +36,21 @@ impl Workspace {
         self.containers.find(id.into()).is_ok()
     }
 
-    pub fn insert(&mut self, c: Client) -> WmResult<ContainerId> {
-        self.containers.add_front(c)
+    pub fn insert(&mut self, c: Client, t: u8) -> ContainerId {
+        self.containers.insert_front(c, t)
     }
 
-    pub fn insert_many(&mut self, cs: Vec<Client>) -> WmResult<Vec<ContainerId>> {
+    pub fn insert_many(&mut self, cs: Vec<Client>, t: Vec<u8>) -> Vec<ContainerId> {
         let mut ret = Vec::new();
-        for c in cs {
-            ret.push(self.containers.add_front(c)?);
+        for (i, &c) in cs.iter().enumerate() {
+            ret.push(self.containers.insert_front(c, t[i]));
         }
 
-        Ok(ret)
+        ret
     }
 
     pub fn apply_layout(&mut self, screen: Geometry) -> WmResult {
-        self.layout.apply(screen, self.containers.get_all())
+        self.layout.apply(screen, self.containers.get_all_mut())
     }
 
     pub fn remove_wid(&mut self, wid: u32) -> WmResult {
@@ -72,35 +69,23 @@ impl Workspace {
         Ok(())
     }
 
-    pub(crate) fn find<I: Into<ContainerId> + Copy>(
-        &self,
-        id: I,
-    ) -> WmResult<Rc<RefCell<ContainerListNode>>> {
-        self.containers.find(id)
+    pub(crate) fn find<I: Into<ContainerId> + Copy>(&self, id: I) -> WmResult<&Container> {
+        self.containers.find(id.into())
     }
 
-    pub(crate) fn find_many<I: Into<ContainerId> + Copy>(
-        &self,
-        ids: Vec<I>,
-    ) -> Vec<Option<(u32, Rc<RefCell<ContainerListNode>>)>> {
-        let mut ret = Vec::with_capacity(ids.len());
+    pub(crate) fn find_many<I: Into<ContainerId> + Copy>(&self, ids: Vec<I>) -> WmResult<Vec<&Container>> {
+        let mut ret = Vec::new();
 
         for id in ids {
-            let node_result = self.containers.find(id);
-            if let Ok(nnode) = node_result {
-                let n = nnode.clone();
-                if let Ok(node) = n.try_borrow() {
-                    ret.push(Some((node.data().wid().unwrap(), nnode)))
-                };
-            } else {
-                ret.push(None)
+            if let Ok(c) = self.containers.find(id.into()) {
+                ret.push(c)
             }
         }
 
-        ret
+        Ok(ret)
     }
 
-    pub(crate) fn get_all(&self) -> WmResult<Vec<Rc<RefCell<ContainerListNode>>>> {
+    pub(crate) fn get_all(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {
         Ok(self.containers.get_all())
     }
 }

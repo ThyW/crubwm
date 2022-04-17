@@ -8,19 +8,19 @@ use super::actions::Action;
 #[derive(Debug, Default)]
 pub struct KeyManager {
     buff: Vec<Keysym>,
-    mod_buff: Vec<Keysym>,
+    mod_keysyms: Vec<Keysym>,
     registered_keybinds: Keybinds,
 }
 
 impl KeyManager {
-    pub fn grab_codes(&self, dpy: *mut Display) -> WmResult<Vec<(u64, Vec<u8>)>> {
+    pub fn grab_codes(&self, dpy: *mut Display) -> WmResult<Vec<(u16, Vec<u8>)>> {
         let mut ret = Vec::new();
         for each in self.registered_keybinds.get_names() {
             let mut x = (0, Vec::new());
             for name in each {
                 let mut keysym = Keysym::lookup_string(dpy, name)?;
                 if keysym.is_mod() {
-                    x.0 = keysym.value();
+                    x.0 = keysym.mod_mask();
                     x.1.push(keysym.try_get_keycode(dpy)?)
                 } else {
                     x.1.push(keysym.try_get_keycode(dpy)?)
@@ -39,12 +39,27 @@ impl KeyManager {
         self.registered_keybinds._extend(binds)
     }
 
+    pub fn init_mods(&mut self) -> WmResult {
+        self.mod_keysyms = Keysym::init_mods()?;
+
+        Ok(())
+    }
+
     pub fn key_press(
         &mut self,
         ev: &x11rb::protocol::xproto::KeyPressEvent,
         dpy: *mut Display,
     ) -> WmResult<Option<Action>> {
         let keysym = Keysym::keysym_from_keycode(dpy, ev.detail, 0)?;
+
+        // first, check for and add modifiers to the Key press buffer
+        for mod_key in &self.mod_keysyms {
+            if (mod_key.mod_mask() & ev.state) != 0 {
+                println!("{}", mod_key.name());
+                self.buff.push(mod_key.clone())
+            }
+        }
+
         self.buff.push(keysym);
 
         // check, if any of the registered keybinds have been satisfied
@@ -68,14 +83,31 @@ impl KeyManager {
         let keysym = Keysym::keysym_from_keycode(dpy, ev.detail, 0)?;
         println!("{}", keysym.name());
         println!("{:?}", self.buff);
-        let mut i = None;
-        for (ii, each) in self.buff.iter_mut().enumerate() {
-            if each.value() == keysym.value() {
-                i = Some(ii)
+
+        let mut mods = Vec::new();
+
+        for mod_key in &self.mod_keysyms {
+            if (mod_key.mod_mask() & ev.state) != 0 {
+                mods.push(mod_key.clone())
             }
         }
 
-        if let Some(index) = i {
+        // TODO: this can probably be done better, but it shouldn't be too much of a performance
+        // problem to do this in O(n^2)
+        let mut to_remove = Vec::new();
+        for (ii, each) in self.buff.iter_mut().enumerate() {
+            if each.value() == keysym.value() {
+                to_remove.push(ii)
+            }
+
+            for mod_key in &mods {
+                if mod_key.value() == each.value() {
+                    to_remove.push(ii)
+                }
+            }
+        }
+
+        for index in to_remove {
             self.buff.remove(index);
         }
 

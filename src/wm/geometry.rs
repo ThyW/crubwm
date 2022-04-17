@@ -42,7 +42,7 @@ impl From<Geometry> for ConfigureWindowAux {
             .x(Some(g.x as i32))
             .y(Some(g.y as i32))
             .width(Some(g.width as u32))
-            .height(Some(g.width as u32))
+            .height(Some(g.height as u32))
             .border_width(Some(g.border_width as u32))
     }
 }

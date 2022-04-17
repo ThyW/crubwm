@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     actions::Action,
-    container::Client,
+    container::{Client, ClientId, CT_TILING},
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
 };
@@ -28,6 +28,7 @@ pub struct State {
     focused_workspace: Option<WorkspaceId>,
     focused_client: Option<u32>,
     key_manager: KeyManager,
+    last_client_id: ClientId,
 }
 
 impl State {
@@ -66,6 +67,7 @@ impl State {
             focused_workspace: None,
             focused_client: None,
             key_manager: KeyManager::default(),
+            last_client_id: 0,
         })
     }
 
@@ -74,12 +76,13 @@ impl State {
         self.key_manager.set_keybinds(binds);
         let dpy = self.display();
         let codes = self.key_manager.grab_codes(dpy)?;
+        self.key_manager.init_mods()?;
 
         for pair in codes {
             for code in pair.1 {
                 println!("grabbing key: {code} with mod {}", pair.0);
                 self.connection()
-                    .grab_key(true, self.root_window(), (1 << 0) as u16, code, GrabMode::ASYNC, GrabMode::ASYNC)?;
+                    .grab_key(true, self.root_window(), pair.0, code, GrabMode::ASYNC, GrabMode::ASYNC)?;
             }
         }
         Ok(())
@@ -125,6 +128,21 @@ impl State {
         }
 
         None
+    }
+
+    pub fn workspace_with_id(&self, id: u32) -> Option<&Workspace> {
+        for ws in &self.workspaces {
+            if ws.id == id {
+                return Some(&ws)
+            }
+        }
+
+        return None
+    }
+
+    fn new_client_id(&mut self) -> ClientId {
+        self.last_client_id += 1;
+        self.last_client_id
     }
 
     /// Get a referecnce to the underlying X connection.
@@ -193,13 +211,14 @@ impl State {
     pub fn manage_window(&mut self, wid: u32) -> WmResult {
         let geometry = self.connection().get_geometry(wid)?.reply()?.into();
         let rg = self.root_geometry()?;
+        let id = self.new_client_id();
         let ws_container_id = self
             .get_focused_ws_mut()?
-            .insert(Client::no_pid(wid, geometry))?;
+            .insert(Client::no_pid(wid, geometry, id), CT_TILING);
         self.get_focused_ws_mut()?.apply_layout(rg)?;
 
         let g = self.get_focused_ws()?.find(ws_container_id)?;
-        let g = g.try_borrow()?.data().geometry();
+        let g = g.data().geometry();
         println!("new window geometry: {}", g);
 
         let aux: ConfigureWindowAux = g.into();
@@ -216,26 +235,29 @@ impl State {
     /// For performance sake, this method does not call `manage_window` internally.
     pub fn manage_windows(&mut self, data: Vec<(u32, Geometry)>) -> WmResult {
         let rg = self.root_geometry()?;
+        let id = self.new_client_id();
         let ids = self.get_focused_ws_mut()?.insert_many(
             data.iter()
-                .map(|tup| Client::no_pid(tup.0, tup.1))
+                .map(|tup| Client::no_pid(tup.0, tup.1, id))
                 .collect(),
-        )?;
+            data.iter()
+                .map(|_| CT_TILING)
+                .collect()
+        );
         self.get_focused_ws_mut()?.apply_layout(rg)?;
 
         let geometries: Vec<(u32, Geometry)> = self
             .get_focused_ws()?
-            .find_many(ids)
+            .find_many(ids)?
             .iter()
-            .filter(|x| x.is_some())
             .map(|each| {
-                let tup = each.as_ref().unwrap();
-                let g = tup.1.try_borrow()?.data().geometry();
+                let id = each.data().wid();
+                let g = each.data().geometry();
 
-                Ok((tup.0, g))
+                // TODO: this has to be fixed in the future, it needs to account for all the
+                // different container types
+                (id.unwrap(), g)
             })
-            .filter(|x: &WmResult<_>| x.is_ok())
-            .map(|x| x.unwrap())
             .collect();
 
         for each in geometries {
@@ -256,15 +278,18 @@ impl State {
         let rg = self.root_geometry()?;
 
         let ws_opt = self.workspace_for_window_mut(window);
+        let mut id = 0;
 
         if let Some(ws) = ws_opt {
             ws.remove_wid(window)?;
             ws.apply_layout(rg)?;
-            for each in ws.get_all()? {
-                let borrowed = each.try_borrow()?;
+            id = ws.id;
+        }
 
-                let g = borrowed.data().geometry();
-                let wid_opt = borrowed.data().wid();
+        if let Some(ws) = self.workspace_with_id(id) {
+            for each in ws.get_all()? {
+                let g = each.data().geometry();
+                let wid_opt = each.data().wid();
 
                 let aux = g.into();
 

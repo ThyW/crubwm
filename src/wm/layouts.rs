@@ -1,12 +1,13 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::errors::WmResult;
-use crate::wm::container::{Container, ContainerListNode};
+use crate::wm::container::{Container, ContainerType};
 use crate::wm::geometry::Geometry;
 
 pub(crate) trait Layout<'a> {
-    fn apply(&self, screen: Geometry, cs: Vec<Rc<RefCell<ContainerListNode>>>) -> WmResult;
+    fn apply(
+        &self,
+        screen: Geometry,
+        cs: std::collections::vec_deque::IterMut<Container>,
+    ) -> WmResult;
 }
 
 #[allow(unused)]
@@ -22,53 +23,60 @@ impl LayoutType {
 }
 
 impl<'a> Layout<'a> for LayoutType {
-    fn apply(&self, screen: Geometry, cs: Vec<Rc<RefCell<ContainerListNode>>>) -> WmResult {
-        if cs.is_empty() {
-            return Ok(());
-        }
-
+    fn apply(
+        &self,
+        screen: Geometry,
+        cs: std::collections::vec_deque::IterMut<Container>,
+    ) -> WmResult {
         match &self {
             Self::TilingEqualHorizontal => {
                 let len = cs.len();
+                if len == 0 {
+                    return Ok(())
+                }
+
+                println!("{len}");
+
                 let width = screen.width / len as u16;
 
-                for (ii, rc) in cs.into_iter().enumerate() {
-                    let mut node = rc.try_borrow_mut()?;
-                    let each = node.data_mut();
-                    match each {
-                        Container::Empty(g) => {
+                for (ii, each) in cs.into_iter().enumerate() {
+                    match each.data_mut() {
+                        ContainerType::Empty(g) => {
                             g.y = 0;
                             g.x = width as i16 * ii as i16;
                             g.width = width;
                             g.height = screen.height;
                         }
-                        Container::InLayout(c) => {
+                        ContainerType::InLayout(c) => {
                             c.geometry.y = 0;
                             c.geometry.x = width as i16 * ii as i16;
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
+                            println!("geom: {}", c.geometry);
                         }
-                        Container::Floating(_) => (),
+                        ContainerType::Floating(_) => (),
                     };
                 }
                 Ok(())
             }
             Self::TilingEqualVertical => {
                 let len = cs.len();
+                if len == 0 {
+                    return Ok(())
+                }
+
                 let height = screen.height / len as u16;
 
-                for (ii, rc) in cs.into_iter().enumerate() {
-                    let mut node = rc.try_borrow_mut()?;
-                    let each = node.data_mut();
-                    match each {
-                        Container::Floating(_) => (),
-                        Container::Empty(g) => {
+                for (ii, each) in cs.into_iter().enumerate() {
+                    match each.data_mut() {
+                        ContainerType::Floating(_) => (),
+                        ContainerType::Empty(g) => {
                             g.x = 0;
                             g.y = height as i16 * ii as i16;
                             g.width = screen.width;
                             g.height = height;
                         }
-                        Container::InLayout(c) => {
+                        ContainerType::InLayout(c) => {
                             c.geometry.x = 0;
                             c.geometry.y = height as i16 * ii as i16;
                             c.geometry.width = screen.width;
