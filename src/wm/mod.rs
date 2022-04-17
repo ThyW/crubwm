@@ -1,7 +1,4 @@
-use x11rb::{
-    connection::Connection,
-    protocol::Event,
-};
+use x11rb::{connection::Connection, protocol::Event};
 
 use crate::{
     config::Config,

@@ -32,7 +32,7 @@ impl<'a> Layout<'a> for LayoutType {
             Self::TilingEqualHorizontal => {
                 let len = cs.len();
                 if len == 0 {
-                    return Ok(())
+                    return Ok(());
                 }
 
                 println!("{len}");
@@ -62,7 +62,7 @@ impl<'a> Layout<'a> for LayoutType {
             Self::TilingEqualVertical => {
                 let len = cs.len();
                 if len == 0 {
-                    return Ok(())
+                    return Ok(());
                 }
 
                 let height = screen.height / len as u16;

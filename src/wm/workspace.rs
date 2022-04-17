@@ -73,7 +73,10 @@ impl Workspace {
         self.containers.find(id.into())
     }
 
-    pub(crate) fn find_many<I: Into<ContainerId> + Copy>(&self, ids: Vec<I>) -> WmResult<Vec<&Container>> {
+    pub(crate) fn find_many<I: Into<ContainerId> + Copy>(
+        &self,
+        ids: Vec<I>,
+    ) -> WmResult<Vec<&Container>> {
         let mut ret = Vec::new();
 
         for id in ids {

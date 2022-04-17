@@ -97,7 +97,7 @@ impl std::fmt::Display for Error {
             Self::X11Reply(e) => write!(f, "{}", e),
             Self::X11Connection(e) => write!(f, "{}", e),
             Self::FromUtf8(e) => write!(f, "{}", e),
-            Self::Utf8(e) => write!(f, "{}", e)
+            Self::Utf8(e) => write!(f, "{}", e),
         }
     }
 }

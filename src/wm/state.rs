@@ -81,8 +81,14 @@ impl State {
         for pair in codes {
             for code in pair.1 {
                 println!("grabbing key: {code} with mod {}", pair.0);
-                self.connection()
-                    .grab_key(true, self.root_window(), pair.0, code, GrabMode::ASYNC, GrabMode::ASYNC)?;
+                self.connection().grab_key(
+                    true,
+                    self.root_window(),
+                    pair.0,
+                    code,
+                    GrabMode::ASYNC,
+                    GrabMode::ASYNC,
+                )?;
             }
         }
         Ok(())
@@ -133,11 +139,11 @@ impl State {
     pub fn workspace_with_id(&self, id: u32) -> Option<&Workspace> {
         for ws in &self.workspaces {
             if ws.id == id {
-                return Some(&ws)
+                return Some(&ws);
             }
         }
 
-        return None
+        return None;
     }
 
     fn new_client_id(&mut self) -> ClientId {
@@ -223,7 +229,8 @@ impl State {
 
         let aux: ConfigureWindowAux = g.into();
 
-        self.connection().reparent_window(wid, self.root_window(), 0, 0)?;
+        self.connection()
+            .reparent_window(wid, self.root_window(), 0, 0)?;
         self.connection().configure_window(wid, &aux)?;
         self.connection().map_window(wid)?;
 
@@ -240,9 +247,7 @@ impl State {
             data.iter()
                 .map(|tup| Client::no_pid(tup.0, tup.1, id))
                 .collect(),
-            data.iter()
-                .map(|_| CT_TILING)
-                .collect()
+            data.iter().map(|_| CT_TILING).collect(),
         );
         self.get_focused_ws_mut()?.apply_layout(rg)?;
 

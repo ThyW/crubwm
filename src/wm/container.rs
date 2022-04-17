@@ -290,23 +290,27 @@ impl ContainerList {
         for c in &self.containers {
             if let Some(cwid) = c.container_type.wid() {
                 if wid == cwid {
-                    return Ok(c.id)
+                    return Ok(c.id);
                 }
             }
         }
 
-        return Err(format!("container list node: unable to find a container for window id: {wid}").into())
+        return Err(
+            format!("container list node: unable to find a container for window id: {wid}").into(),
+        );
     }
 
     pub fn id_for_pid(&self, pid: u32) -> WmResult<ContainerId> {
         for c in &self.containers {
             if let Some(cpid) = c.container_type.pid() {
                 if pid == cpid {
-                    return Ok(c.id)
+                    return Ok(c.id);
                 }
             }
         }
 
-        return Err(format!("container list node: unable to find a container for window id: {pid}").into())
+        return Err(
+            format!("container list node: unable to find a container for window id: {pid}").into(),
+        );
     }
 }
