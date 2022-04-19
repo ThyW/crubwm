@@ -37,13 +37,13 @@ impl Workspace {
     }
 
     pub fn insert(&mut self, c: Client, t: u8) -> ContainerId {
-        self.containers.insert_front(c, t)
+        self.containers.insert_back(c, t)
     }
 
     pub fn insert_many(&mut self, cs: Vec<Client>, t: Vec<u8>) -> Vec<ContainerId> {
         let mut ret = Vec::new();
         for (i, &c) in cs.iter().enumerate() {
-            ret.push(self.containers.insert_front(c, t[i]));
+            ret.push(self.containers.insert_back(c, t[i]));
         }
 
         ret
@@ -73,7 +73,7 @@ impl Workspace {
         self.containers.find(id.into())
     }
 
-    pub(crate) fn find_many<I: Into<ContainerId> + Copy>(
+    pub(crate) fn _find_many<I: Into<ContainerId> + Copy>(
         &self,
         ids: Vec<I>,
     ) -> WmResult<Vec<&Container>> {

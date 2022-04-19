@@ -10,14 +10,14 @@ use x11::xlib::{Display, XKeycodeToKeysym, XKeysymToKeycode, XKeysymToString, XS
 use x11rb::protocol::xproto::Keycode;
 
 const MODS: [u32; 11] = [
-    XK_Super_R,
     XK_Super_L,
+    XK_Super_R,
     XK_Shift_L,
     XK_Shift_R,
-    XK_Alt_R,
     XK_Alt_L,
-    XK_Control_R,
+    XK_Alt_R,
     XK_Control_L,
+    XK_Control_R,
     XK_Caps_Lock,
     XK_Meta_L,
     XK_Meta_R,
@@ -74,8 +74,8 @@ impl Keysym {
     #[allow(non_upper_case_globals)]
     pub fn is_mod(&self) -> bool {
         return match self.value() as u32 {
-            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Alt_L | XK_Alt_R
-            | XK_Shift_L | XK_Shift_R => true,
+            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Meta_L | XK_Alt_R
+            | XK_Alt_L | XK_Shift_L | XK_Shift_R => true,
             _ => false,
         };
     }
@@ -88,8 +88,8 @@ impl Keysym {
                 XK_Shift_R | XK_Shift_L => 1 << 0,
                 XK_Caps_Lock => 1 << 1,
                 XK_Control_R | XK_Control_L => 1 << 2,
-                XK_Meta_L | XK_Meta_R => 1 << 3,
-                XK_Super_L | XK_Shift_R => 1 << 6,
+                XK_Alt_L | XK_Alt_R | XK_Meta_L => 1 << 3,
+                XK_Super_L | XK_Super_R => 1 << 6,
                 _ => 0,
             };
         }

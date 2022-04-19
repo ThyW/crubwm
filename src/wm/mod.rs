@@ -37,8 +37,8 @@ impl Wm {
     /// Create a new window manager instance.
     pub fn new(config: Config) -> WmResult<Self> {
         let display_name = match config.options.display_name.is_empty() {
-            true => Some(config.options.display_name.as_str()),
-            false => None,
+            false => Some(config.options.display_name.as_str()),
+            true => None,
         };
 
         // create the state manager here.
@@ -88,7 +88,7 @@ impl Wm {
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
             // TODO: maybe experiment and see if MapRequest is not good enough
-            Event::CreateNotify(e) => {
+            Event::MapRequest(e) => {
                 println!("root window geometry: {}", self.state.root_geometry()?);
                 self.state.manage_window(e.window)?;
             }

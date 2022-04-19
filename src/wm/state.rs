@@ -3,7 +3,7 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask, GrabMode,
+        ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode,
         KeyPressEvent, KeyReleaseEvent, Screen,
     },
     rust_connection::RustConnection,
@@ -36,8 +36,8 @@ impl State {
     ///
     /// If a name of the display is given, use that display, otherwise use the display from the
     /// DISPLAY environmental variable.
-    pub fn new(_name: Option<&str>) -> WmResult<Self> {
-        let (conn, screen_index) = connect(None)?;
+    pub fn new(name: Option<&str>) -> WmResult<Self> {
+        let (conn, screen_index) = connect(name)?;
         let display = unsafe { XOpenDisplay(std::ptr::null()) };
         if display.is_null() {
             return Err("x11 error: unable to open a connetion to X server.".into());
@@ -45,9 +45,9 @@ impl State {
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
-            EventMask::KEY_PRESS
-                | EventMask::KEY_RELEASE
-                | EventMask::SUBSTRUCTURE_NOTIFY
+            /* EventMask::KEY_PRESS
+                | EventMask::KEY_RELEASE | */
+                EventMask::SUBSTRUCTURE_NOTIFY
                 | EventMask::SUBSTRUCTURE_REDIRECT
                 | EventMask::BUTTON_PRESS
                 | EventMask::POINTER_MOTION
@@ -78,6 +78,7 @@ impl State {
         let codes = self.key_manager.grab_codes(dpy)?;
         self.key_manager.init_mods()?;
 
+        println!("{:#?}", codes);
         for pair in codes {
             for code in pair.1 {
                 println!("grabbing key: {code} with mod {}", pair.0);
@@ -170,7 +171,7 @@ impl State {
     }
 
     // Get a reference to the focused workspace.
-    fn get_focused_ws(&mut self) -> WmResult<&Workspace> {
+    fn get_focused_ws(&self) -> WmResult<&Workspace> {
         if let Some(id) = self.focused_workspace {
             if let Some(ws) = self.workspaces.iter().find(|ws| ws.id == id) {
                 return Ok(ws);
@@ -213,6 +214,19 @@ impl State {
         self.manage_windows(data)
     }
 
+    pub fn update_windows(&self, wsid: WorkspaceId) -> WmResult {
+        let ws = self.workspace_with_id(wsid);
+        if let Some(w) = ws {
+            for win in w.get_all()? {
+                if let Some(wid) = win.data().wid() {
+                    self.connection().configure_window(wid, &win.data().geometry().into())?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Let a window be managed by the window manager.
     pub fn manage_window(&mut self, wid: u32) -> WmResult {
         let geometry = self.connection().get_geometry(wid)?.reply()?.into();
@@ -227,11 +241,10 @@ impl State {
         let g = g.data().geometry();
         println!("new window geometry: {}", g);
 
-        let aux: ConfigureWindowAux = g.into();
-
         self.connection()
-            .reparent_window(wid, self.root_window(), 0, 0)?;
-        self.connection().configure_window(wid, &aux)?;
+        .reparent_window(wid, self.root_window(), 0, 0)?;
+        let wsid = self.get_focused_ws()?.id;
+        self.update_windows(wsid)?;
         self.connection().map_window(wid)?;
 
         Ok(())
@@ -243,7 +256,7 @@ impl State {
     pub fn manage_windows(&mut self, data: Vec<(u32, Geometry)>) -> WmResult {
         let rg = self.root_geometry()?;
         let id = self.new_client_id();
-        let ids = self.get_focused_ws_mut()?.insert_many(
+        self.get_focused_ws_mut()?.insert_many(
             data.iter()
                 .map(|tup| Client::no_pid(tup.0, tup.1, id))
                 .collect(),
@@ -251,24 +264,11 @@ impl State {
         );
         self.get_focused_ws_mut()?.apply_layout(rg)?;
 
-        let geometries: Vec<(u32, Geometry)> = self
-            .get_focused_ws()?
-            .find_many(ids)?
-            .iter()
-            .map(|each| {
-                let id = each.data().wid();
-                let g = each.data().geometry();
+        let wsid = self.get_focused_ws()?.id;
 
-                // TODO: this has to be fixed in the future, it needs to account for all the
-                // different container types
-                (id.unwrap(), g)
-            })
-            .collect();
+        self.update_windows(wsid)?;
 
-        for each in geometries {
-            let aux: ConfigureWindowAux = each.1.into();
-
-            self.connection().configure_window(each.0, &aux)?;
+        for each in data {
             self.connection().map_window(each.0)?;
         }
 

@@ -20,8 +20,8 @@ impl KeyManager {
             for name in each {
                 let mut keysym = Keysym::lookup_string(dpy, name)?;
                 if keysym.is_mod() {
-                    x.0 = keysym.mod_mask();
-                    x.1.push(keysym.try_get_keycode(dpy)?)
+                    x.0 |= keysym.mod_mask();
+                    // x.1.push(keysym.try_get_keycode(dpy)?)
                 } else {
                     x.1.push(keysym.try_get_keycode(dpy)?)
                 }
@@ -52,15 +52,21 @@ impl KeyManager {
     ) -> WmResult<Option<Action>> {
         let keysym = Keysym::keysym_from_keycode(dpy, ev.detail, 0)?;
 
-        // first, check for and add modifiers to the Key press buffer
         for mod_key in &self.mod_keysyms {
             if (mod_key.mod_mask() & ev.state) != 0 {
-                println!("{}", mod_key.name());
-                self.buff.push(mod_key.clone())
+                println!("pushing mod: {}", mod_key.name());
+                self.buff.push(mod_key.clone());
+                break;
             }
         }
 
-        self.buff.push(keysym);
+        if !self.buff.contains(&keysym) {
+            println!("pushing keysym: {}", keysym.name());
+            self.buff.push(keysym);
+        }
+
+        println!("buffer: {:#?}", self.buff);
+
 
         // check, if any of the registered keybinds have been satisfied
         let buff_names: Vec<String> = self.buff.iter().map(|k| k.name()).collect();
@@ -81,14 +87,12 @@ impl KeyManager {
         dpy: *mut Display,
     ) -> WmResult {
         let keysym = Keysym::keysym_from_keycode(dpy, ev.detail, 0)?;
-        println!("{}", keysym.name());
-        println!("{:?}", self.buff);
-
         let mut mods = Vec::new();
 
         for mod_key in &self.mod_keysyms {
             if (mod_key.mod_mask() & ev.state) != 0 {
-                mods.push(mod_key.clone())
+                mods.push(mod_key.clone());
+                break;
             }
         }
 
@@ -107,9 +111,12 @@ impl KeyManager {
             }
         }
 
-        for index in to_remove {
+        println!("buff: {:#?}", self.buff);
+        println!("buff: {:#?}", to_remove);
+
+        /* for index in to_remove {
             self.buff.remove(index);
-        }
+        } */
 
         self.buff.clear();
 
