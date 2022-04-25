@@ -1,4 +1,5 @@
 keybind "<Alt><l>" execute "alacritty"
+keybind "<Alt><d>" execute "dmenu_run"
 keybind "<Alt>1" goto "1"
 keybind "<Alt><Shift>1" move "1"
 keybind "<Alt><up>" focus "up"
