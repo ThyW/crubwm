@@ -3,8 +3,8 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode,
-        KeyPressEvent, KeyReleaseEvent, Screen,
+        ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, KeyPressEvent,
+        KeyReleaseEvent, Screen,
     },
     rust_connection::RustConnection,
 };
@@ -46,8 +46,8 @@ impl State {
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
             /* EventMask::KEY_PRESS
-                | EventMask::KEY_RELEASE | */
-                EventMask::SUBSTRUCTURE_NOTIFY
+            | EventMask::KEY_RELEASE | */
+            EventMask::SUBSTRUCTURE_NOTIFY
                 | EventMask::SUBSTRUCTURE_REDIRECT
                 | EventMask::BUTTON_PRESS
                 | EventMask::POINTER_MOTION
@@ -78,9 +78,9 @@ impl State {
         let codes = self.key_manager.grab_codes(dpy)?;
         self.key_manager.init_mods()?;
 
-        println!("{:#?}", codes);
         for pair in codes {
             for code in pair.1 {
+                #[cfg(debug_assertions)]
                 println!("grabbing key: {code} with mod {}", pair.0);
                 self.connection().grab_key(
                     true,
@@ -115,7 +115,7 @@ impl State {
 
     /// Go through all workspaces, if they contain a given window: return the reference to the
     /// workspace, otherwise don't return anything.
-    fn _workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
+    fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
         for workspace in &self.workspaces {
             if workspace.contains_wid(wid) {
                 return Some(workspace);
@@ -219,7 +219,8 @@ impl State {
         if let Some(w) = ws {
             for win in w.get_all()? {
                 if let Some(wid) = win.data().wid() {
-                    self.connection().configure_window(wid, &win.data().geometry().into())?;
+                    self.connection()
+                        .configure_window(wid, &win.data().geometry().into())?;
                 }
             }
         }
@@ -239,10 +240,19 @@ impl State {
 
         let g = self.get_focused_ws()?.find(ws_container_id)?;
         let g = g.data().geometry();
+        #[cfg(debug_assertions)]
         println!("new window geometry: {}", g);
 
         self.connection()
-        .reparent_window(wid, self.root_window(), 0, 0)?;
+            .reparent_window(wid, self.root_window(), 0, 0)?;
+        let old_event_mask = self
+            .connection()
+            .get_window_attributes(wid)?
+            .reply()?
+            .your_event_mask;
+        let cwattrs =
+            ChangeWindowAttributesAux::new().event_mask(old_event_mask | EventMask::ENTER_WINDOW);
+        self.connection().change_window_attributes(wid, &cwattrs)?;
         let wsid = self.get_focused_ws()?.id;
         self.update_windows(wsid)?;
         self.connection().map_window(wid)?;
@@ -316,7 +326,7 @@ impl State {
         let _ = self.focused_client.insert(window);
         let mut id = 0;
 
-        if let Some(ws) = self._workspace_for_window(window) {
+        if let Some(ws) = self.workspace_for_window(window) {
             id = ws.id
         }
 
@@ -327,6 +337,9 @@ impl State {
             window,
             x11rb::CURRENT_TIME,
         )?;
+        let window_with_input_focus = self.connection().get_input_focus()?.reply()?.focus;
+        #[cfg(debug_assertions)]
+        println!("focused window is: {window_with_input_focus}");
         self.connection().flush()?;
 
         Ok(())
@@ -335,7 +348,6 @@ impl State {
     /// Handle a key press event.
     pub fn handle_key_press(&mut self, ev: &KeyPressEvent) -> WmResult {
         let disp = self.display();
-        println!("{}", ev.state);
         let out = self.key_manager.key_press(ev, disp)?;
         if let Some(action) = out {
             self.do_action(action)?
@@ -361,9 +373,7 @@ impl State {
     pub fn do_action(&mut self, a: Action) -> WmResult {
         match a {
             Action::Noop => {}
-            Action::Kill => {
-                // self.handle_action_kill()?
-            }
+            Action::Kill => self.handle_action_kill()?,
             Action::Goto(_direction) => {
                 // self.handle_action_goto(direction)?
             }
@@ -381,6 +391,18 @@ impl State {
 
     fn handle_action_execute(&mut self, command: String) -> WmResult {
         let _ = std::process::Command::new(command).spawn()?;
+
+        Ok(())
+    }
+
+    // TODO: should read wm hints for pid and kill the pid
+    fn handle_action_kill(&mut self) -> WmResult {
+        if let Some(wid) = self.focused_client {
+            #[cfg(debug_assertions)]
+            println!("killing {wid}");
+            self.connection().destroy_subwindows(wid)?;
+            self.connection().destroy_window(wid)?;
+        }
 
         Ok(())
     }

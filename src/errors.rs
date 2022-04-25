@@ -87,17 +87,17 @@ impl From<std::str::Utf8Error> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "{}", e),
-            Self::Generic(e) => write!(f, "{}", e),
-            Self::Borrow(e) => write!(f, "{}", e),
-            Self::ParseInt(e) => write!(f, "{}", e),
-            Self::ParseBool(e) => write!(f, "{}", e),
-            Self::BorrowMut(e) => write!(f, "{}", e),
-            Self::X11Connect(e) => write!(f, "{}", e),
-            Self::X11Reply(e) => write!(f, "{}", e),
-            Self::X11Connection(e) => write!(f, "{}", e),
-            Self::FromUtf8(e) => write!(f, "{}", e),
-            Self::Utf8(e) => write!(f, "{}", e),
+            Self::Io(e) => write!(f, "[ERR] {}", e),
+            Self::Generic(e) => write!(f, "[ERR] {}", e),
+            Self::Borrow(e) => write!(f, "[ERR] {}", e),
+            Self::ParseInt(e) => write!(f, "[ERR] {}", e),
+            Self::ParseBool(e) => write!(f, "[ERR] {}", e),
+            Self::BorrowMut(e) => write!(f, "[ERR] {}", e),
+            Self::X11Connect(e) => write!(f, "[ERR] {}", e),
+            Self::X11Reply(e) => write!(f, "[ERR] {}", e),
+            Self::X11Connection(e) => write!(f, "[ERR] {}", e),
+            Self::FromUtf8(e) => write!(f, "[ERR] {}", e),
+            Self::Utf8(e) => write!(f, "[ERR] {}", e),
         }
     }
 }

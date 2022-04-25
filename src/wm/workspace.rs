@@ -26,6 +26,11 @@ impl Workspace {
         self.containers.id_for_wid(wid).is_ok()
     }
 
+    pub fn find_by_wid(&self, wid: u32) -> WmResult<&Container> {
+        let id = self.containers.id_for_wid(wid)?;
+        self.find(id)
+    }
+
     /// Contains a client with the given process id?
     pub fn _contains_pid(&self, pid: u32) -> bool {
         self.containers.id_for_pid(pid).is_ok()

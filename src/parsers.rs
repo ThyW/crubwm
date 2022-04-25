@@ -11,11 +11,11 @@ const CONFIG_PATH: &str = "~/.config/crubwm/config";
 /// Command line argument parser.
 ///
 /// Takes an input in the form of a vector of Strings and returns a Result with either the parsed
-/// commands or a ArgumentParserError;
+/// commands or an ArgumentParserError;
 pub struct ArgumentParser;
 
 #[derive(Debug, PartialEq, Eq)]
-/// Enumeration of all possible and legal commands types, which can be created from command line
+/// Enumeration of all possible and legal command types which can be created from command line
 /// arguments.
 pub enum CommandType {
     /// Takes no other arguments.
@@ -25,7 +25,7 @@ pub enum CommandType {
     Help,
     /// Takes one argument.
     ///
-    /// Ignores the default config path, instead uses the one passed as a argument.
+    /// Ignores the default config path, instead uses the one passed as an argument.
     Config,
 }
 
@@ -58,7 +58,8 @@ impl Command {
     }
 
     /// Does the command have its required amount of arguments?
-    /// Returns true even if it takes no arguments.
+    ///
+    /// Returns true even if the command takes no additional arguments.
     fn is_complete(&self) -> bool {
         if self.has_args() {
             let temp = self.args.as_ref().unwrap();
@@ -68,7 +69,7 @@ impl Command {
         }
     }
 
-    /// Attempt to add a new subargument.
+    /// Attempt to add a new argument.
     ///
     /// Returns true if it's already full or if the addition filled it up.
     /// Returns false otherwise.
@@ -109,7 +110,7 @@ impl ArgumentParser {
                 if command.is_some() {
                     let inner = command.take().unwrap();
                     if !inner.is_complete() {
-                        return Err("argument error: subarguments missing.".into());
+                        return Err("argument error: sub-arguments missing.".into());
                     } else {
                         return_vec.push(inner)
                     }
@@ -128,7 +129,7 @@ impl ArgumentParser {
             if inner.is_complete() {
                 return_vec.push(inner)
             } else {
-                return Err("argument error: subarguments missing.".into());
+                return Err("argument error: sub-arguments missing.".into());
             }
         }
         Ok(return_vec)
@@ -137,7 +138,10 @@ impl ArgumentParser {
 
 impl ConfigParser {
     /// Parse a config file.
-    /// This also checks for commands which can have an impact on this.
+    ///
+    /// Given a list of commands already received, check whether the `--config` command has been
+    /// passed and read the new path, otherwise read the default config file which is located in
+    /// `~/.config/crubwm/config`.
     pub fn parse(commands: &Vec<Command>) -> WmResult<Config> {
         let mut ret = Config::default();
         let mut path = CONFIG_PATH.to_owned();
@@ -222,6 +226,7 @@ impl TryFrom<String> for ConfigLine {
     type Error = Error;
 
     fn try_from(line: String) -> WmResult<Self> {
+        #[cfg(debug_assertions)]
         println!("{line}");
         if let Some(s) = line.strip_prefix("keybind ") {
             let rest_of_line = s;
@@ -252,6 +257,7 @@ impl TryFrom<String> for ConfigLine {
             return Ok(Self::Comment(line));
         }
 
+        #[cfg(debug_assertions)]
         println!("here, {line}");
 
         Err("config parsing error: unable to parse config file line".into())

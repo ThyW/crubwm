@@ -30,6 +30,7 @@ impl Default for Keybinds {
 }
 
 impl Keybinds {
+    /// Add a new keybind.
     pub fn add(&mut self, keys: String, action: String) -> WmResult {
         let keybind = Keybind::from(keys, action)?;
         self.0.push(keybind);
@@ -40,6 +41,7 @@ impl Keybinds {
         self.0.extend(from)
     }
 
+    /// Get the X11 keysym names and action associated with the keybind.
     pub fn get_names_and_actions(&mut self) -> Vec<(Vec<&'_ str>, Action)> {
         let mut ret = Vec::with_capacity(self.0.len());
         for each in &self.0 {
@@ -50,6 +52,7 @@ impl Keybinds {
         ret
     }
 
+    /// Get only the X11 keysym names associated with a keybind.
     pub fn get_names(&self) -> Vec<Vec<&str>> {
         let mut ret = Vec::new();
         for each in &self.0 {
@@ -61,8 +64,6 @@ impl Keybinds {
     }
 }
 
-// TODO: Keys have to be able to be turned into a X-Keysym-name compatible strings, in order to be
-// able to grab keys.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 #[allow(unused)]
 pub enum Key {

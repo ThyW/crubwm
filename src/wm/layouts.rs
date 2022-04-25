@@ -35,6 +35,7 @@ impl<'a> Layout<'a> for LayoutType {
                     return Ok(());
                 }
 
+                #[cfg(debug_assertions)]
                 println!("{len}");
 
                 let width = screen.width / len as u16;

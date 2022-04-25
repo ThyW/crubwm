@@ -295,9 +295,10 @@ impl ContainerList {
             }
         }
 
-        return Err(
-            format!("container list node: unable to find a container for window id: {wid}").into(),
-        );
+        return Err(format!(
+            "container list node: unable to find a container for window id: {wid}"
+        )
+        .into());
     }
 
     pub fn id_for_pid(&self, pid: u32) -> WmResult<ContainerId> {
@@ -309,8 +310,9 @@ impl ContainerList {
             }
         }
 
-        return Err(
-            format!("container list node: unable to find a container for window id: {pid}").into(),
-        );
+        return Err(format!(
+            "container list node: unable to find a container for window id: {pid}"
+        )
+        .into());
     }
 }

@@ -9,24 +9,39 @@ use x11::keysym::{
 use x11::xlib::{Display, XKeycodeToKeysym, XKeysymToKeycode, XKeysymToString, XStringToKeysym};
 use x11rb::protocol::xproto::Keycode;
 
+/// All available modifier keys.
 const MODS: [u32; 11] = [
+    // Left super key(Windows logo on most modern keyboards).
     XK_Super_L,
+    // Right super key.
     XK_Super_R,
+    // Left shift key.
     XK_Shift_L,
+    // Right shift key.
     XK_Shift_R,
+    // Left ALT key.
     XK_Alt_L,
+    // Right ALT key.
     XK_Alt_R,
+    // Left CTRL.
     XK_Control_L,
+    // Right CTRL.
     XK_Control_R,
+    // Caps Lock key.
     XK_Caps_Lock,
+    // Meta Keys
     XK_Meta_L,
     XK_Meta_R,
 ];
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+/// WM's representation of a keysym.
 pub struct Keysym {
+    /// Keysym name.
     name: String,
+    /// Optional X11 keycode.
     code: Option<u8>,
+    /// X11 keysym value.
     value: u64,
 }
 
@@ -73,11 +88,7 @@ impl Keysym {
     /// Checks if the Keysym is a Modifier key, for example shift, super key or alt.
     #[allow(non_upper_case_globals)]
     pub fn is_mod(&self) -> bool {
-        return match self.value() as u32 {
-            XK_Super_L | XK_Super_R | XK_Control_L | XK_Control_R | XK_Meta_L | XK_Alt_R
-            | XK_Alt_L | XK_Shift_L | XK_Shift_R => true,
-            _ => false,
-        };
+        MODS.iter().find(|&m| *m as u64 == self.value()).is_some()
     }
 
     /// Returh the mask value of the keysym, if it is a mod key.

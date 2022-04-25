@@ -17,7 +17,7 @@ mod workspace;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");
-    println!("Here is a list of all possible command line options:\n");
+    println!("Here is a list of all command line options:\n");
     println!("  -h or --help   \t\tPrint this message.");
     println!("  --config [PATH]\t\tUse a different config file.");
 }
@@ -64,6 +64,7 @@ impl Wm {
         // notify the window manager of the keybinds
         self.state.init_keyman(self.config.keybinds.clone())?;
 
+        // run the event loop, don't stop on errors, just report them and keep going.
         loop {
             self.state.connection().flush()?;
             let event = self.state.connection().wait_for_event()?;
@@ -71,7 +72,7 @@ impl Wm {
             let mut event_option = Some(event);
             while let Some(ev) = event_option {
                 if let Err(e) = self.handle_event(ev) {
-                    println!("{}", e)
+                    eprintln!("{e}")
                 }
                 event_option = self.state.connection().poll_for_event()?;
             }
@@ -82,24 +83,53 @@ impl Wm {
     fn handle_event(&mut self, event: Event) -> WmResult {
         match event {
             Event::Error(e) => {
-                println!("X11Error: {:?}", e)
+                let extension_name = e.extension_name.unwrap_or("Unknown".to_string());
+                let request_name = e.request_name.unwrap_or("Unknown");
+                eprintln!(
+                    "[ERR] X11 Error Event Received: error-kind -> {:?},
+                          error-code -> {},
+                          bad-value -> {},
+                          extension-name -> {},
+                          request-name -> {}",
+                    e.error_kind, e.error_code, e.bad_value, extension_name, request_name
+                )
             }
             Event::KeyPress(e) => self.state.handle_key_press(&e)?,
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
-            // TODO: maybe experiment and see if MapRequest is not good enough
             Event::MapRequest(e) => {
+                #[cfg(debug_assertions)]
                 println!("root window geometry: {}", self.state.root_geometry()?);
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
+                #[cfg(debug_assertions)]
+                println!("enter event: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
+            Event::LeaveNotify(e) => {
+                #[cfg(debug_assertions)]
+                println!("leave: {}", e.event);
+            }
+            Event::FocusIn(e) => {
+                #[cfg(debug_assertions)]
+                println!("focus in: {}", e.event)
+            }
+            Event::FocusOut(e) => {
+                #[cfg(debug_assertions)]
+                println!("focus out: {}", e.event)
+            }
+            Event::ClientMessage(e) => {
+                #[cfg(debug_assertions)]
+                println!("client message: {}", e.window);
+            }
             Event::Expose(e) => {
+                #[cfg(debug_assertions)]
                 println!("expose event on window: {}", e.window);
             }
             Event::UnmapNotify(e) => {
-                println!("unmap event: {:#?}", e)
+                #[cfg(debug_assertions)]
+                println!("unmap event: {}", e.window)
             }
             Event::DestroyNotify(e) => {
                 self.state.unmanage_window(e.window)?;
