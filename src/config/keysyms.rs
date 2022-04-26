@@ -88,7 +88,7 @@ impl Keysym {
     /// Checks if the Keysym is a Modifier key, for example shift, super key or alt.
     #[allow(non_upper_case_globals)]
     pub fn is_mod(&self) -> bool {
-        MODS.iter().find(|&m| *m as u64 == self.value()).is_some()
+        MODS.iter().any(|&m| m as u64 == self.value())
     }
 
     /// Returh the mask value of the keysym, if it is a mod key.
@@ -105,7 +105,7 @@ impl Keysym {
             };
         }
 
-        return 0;
+        0
     }
 
     /// A reverse process of trying to get a Keycode from a Keysym.

@@ -78,8 +78,11 @@ impl Client {
     pub fn wid(&self) -> u32 {
         self.wid
     }
-    pub fn pid(&self) -> u32 {
-        self.pid
+    pub fn pid(&self) -> Option<u32> {
+        if self.pid == 0 {
+            return None;
+        }
+        Some(self.pid)
     }
     pub fn geometry(&self) -> Geometry {
         self.geometry
@@ -188,8 +191,18 @@ impl ContainerType {
     pub fn pid(&self) -> Option<u32> {
         match self {
             Self::Empty(_) => None,
-            Self::InLayout(c) => Some(c.pid),
-            Self::Floating(c) => Some(c.pid),
+            Self::InLayout(c) => {
+                if c.pid == 0 {
+                    return None;
+                }
+                Some(c.pid)
+            }
+            Self::Floating(c) => {
+                if c.pid == 0 {
+                    return None;
+                }
+                Some(c.pid)
+            }
         }
     }
 }

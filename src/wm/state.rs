@@ -3,14 +3,15 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, KeyPressEvent,
+        AtomEnum, ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, KeyPressEvent,
         KeyReleaseEvent, Screen,
     },
     rust_connection::RustConnection,
 };
 
 use crate::{
-    config::Keybinds, errors::WmResult, wm::keyman::KeyManager, wm::workspace::Workspaces,
+    config::Keybinds, errors::WmResult, wm::atoms::AtomManager, wm::keyman::KeyManager,
+    wm::workspace::Workspaces,
 };
 
 use super::{
@@ -19,6 +20,8 @@ use super::{
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
 };
+
+use std::collections::HashMap;
 
 pub struct State {
     connection: RustConnection,
@@ -29,6 +32,7 @@ pub struct State {
     focused_client: Option<u32>,
     key_manager: KeyManager,
     last_client_id: ClientId,
+    atoms: HashMap<String, u32>,
 }
 
 impl State {
@@ -45,8 +49,6 @@ impl State {
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
-            /* EventMask::KEY_PRESS
-            | EventMask::KEY_RELEASE | */
             EventMask::SUBSTRUCTURE_NOTIFY
                 | EventMask::SUBSTRUCTURE_REDIRECT
                 | EventMask::BUTTON_PRESS
@@ -54,10 +56,13 @@ impl State {
                 | EventMask::ENTER_WINDOW
                 | EventMask::LEAVE_WINDOW
                 | EventMask::STRUCTURE_NOTIFY
-                | EventMask::PROPERTY_CHANGE,
+                | EventMask::PROPERTY_CHANGE
+                | EventMask::FOCUS_CHANGE,
         );
 
         conn.change_window_attributes(conn.setup().roots[screen_index].root, &change)?;
+
+        let atoms = AtomManager::init_atoms(&conn)?;
 
         Ok(Self {
             connection: conn,
@@ -68,6 +73,7 @@ impl State {
             focused_client: None,
             key_manager: KeyManager::default(),
             last_client_id: 0,
+            atoms,
         })
     }
 
@@ -140,11 +146,11 @@ impl State {
     pub fn workspace_with_id(&self, id: u32) -> Option<&Workspace> {
         for ws in &self.workspaces {
             if ws.id == id {
-                return Some(&ws);
+                return Some(ws);
             }
         }
 
-        return None;
+        None
     }
 
     fn new_client_id(&mut self) -> ClientId {
@@ -231,17 +237,17 @@ impl State {
     /// Let a window be managed by the window manager.
     pub fn manage_window(&mut self, wid: u32) -> WmResult {
         let geometry = self.connection().get_geometry(wid)?.reply()?.into();
-        let rg = self.root_geometry()?;
+        let root_geom = self.root_geometry()?;
         let id = self.new_client_id();
         let ws_container_id = self
             .get_focused_ws_mut()?
             .insert(Client::no_pid(wid, geometry, id), CT_TILING);
-        self.get_focused_ws_mut()?.apply_layout(rg)?;
+        self.get_focused_ws_mut()?.apply_layout(root_geom)?;
 
-        let g = self.get_focused_ws()?.find(ws_container_id)?;
-        let g = g.data().geometry();
+        let new_geom = self.get_focused_ws()?.find(ws_container_id)?;
+        let new_geom = new_geom.data().geometry();
         #[cfg(debug_assertions)]
-        println!("new window geometry: {}", g);
+        println!("new window geometry: {}", new_geom);
 
         self.connection()
             .reparent_window(wid, self.root_window(), 0, 0)?;
@@ -250,10 +256,28 @@ impl State {
             .get_window_attributes(wid)?
             .reply()?
             .your_event_mask;
-        let cwattrs =
-            ChangeWindowAttributesAux::new().event_mask(old_event_mask | EventMask::ENTER_WINDOW);
-        self.connection().change_window_attributes(wid, &cwattrs)?;
+        let cw_attributes = ChangeWindowAttributesAux::new()
+            .event_mask(old_event_mask | EventMask::ENTER_WINDOW | EventMask::FOCUS_CHANGE);
+        self.connection()
+            .change_window_attributes(wid, &cw_attributes)?;
         let wsid = self.get_focused_ws()?.id;
+
+        // get process pid
+        let pid_reply = self
+            .connection()
+            .get_property(
+                false,
+                wid,
+                *self.atoms.get("_NET_WM_PID").unwrap(),
+                AtomEnum::CARDINAL,
+                0,
+                1,
+            )?
+            .reply()?;
+        let pid: Vec<u32> = pid_reply.value32().unwrap().collect();
+        #[cfg(debug_assertions)]
+        println!("_NET_WM_PID: {}", pid[0]);
+
         self.update_windows(wsid)?;
         self.connection().map_window(wid)?;
 
@@ -390,7 +414,12 @@ impl State {
     }
 
     fn handle_action_execute(&mut self, command: String) -> WmResult {
-        let _ = std::process::Command::new(command).spawn()?;
+        let process = std::process::Command::new(command.clone())
+            .env("DISPLAY", ":1")
+            .spawn()?;
+
+        #[cfg(debug_assertions)]
+        println!("command: {command} has child process {}", process.id());
 
         Ok(())
     }
@@ -398,8 +427,42 @@ impl State {
     // TODO: should read wm hints for pid and kill the pid
     fn handle_action_kill(&mut self) -> WmResult {
         if let Some(wid) = self.focused_client {
-            #[cfg(debug_assertions)]
-            println!("killing {wid}");
+            if let Some(ws) = self.workspace_for_window(wid) {
+                if let Ok(cont) = ws.find_by_wid(wid) {
+                    if let Some(pid) = cont.data().pid() {
+                        if pid != 0 {
+                            let pid = format!("{pid}");
+                            #[cfg(debug_assertions)]
+                            println!("pid 1: {pid}");
+                            std::process::Command::new("kill").arg(pid).spawn()?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+
+            let pid_reply = self
+                .connection()
+                .get_property(
+                    false,
+                    wid,
+                    *self.atoms.get("_NET_WM_PID").unwrap(),
+                    AtomEnum::CARDINAL,
+                    0,
+                    1,
+                )?
+                .reply()?;
+
+            if pid_reply.value_len != 0 && pid_reply.format == 32 {
+                let pid = pid_reply.value32().unwrap().collect::<Vec<u32>>()[0];
+                #[cfg(debug_assertions)]
+                println!("killing {pid}");
+                std::process::Command::new("kill")
+                    .arg(format!("{pid}"))
+                    .spawn()?;
+                return Ok(());
+            }
+
             self.connection().destroy_subwindows(wid)?;
             self.connection().destroy_window(wid)?;
         }

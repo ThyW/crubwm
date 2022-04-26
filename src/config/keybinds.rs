@@ -45,7 +45,7 @@ impl Keybinds {
     pub fn get_names_and_actions(&mut self) -> Vec<(Vec<&'_ str>, Action)> {
         let mut ret = Vec::with_capacity(self.0.len());
         for each in &self.0 {
-            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.to_x11_str()).collect();
+            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.get_x11_str()).collect();
             ret.push((names, each.action.clone()))
         }
 
@@ -56,7 +56,7 @@ impl Keybinds {
     pub fn get_names(&self) -> Vec<Vec<&str>> {
         let mut ret = Vec::new();
         for each in &self.0 {
-            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.to_x11_str()).collect();
+            let names: Vec<&'_ str> = each.keys.iter().map(|k| k.get_x11_str()).collect();
             ret.push(names)
         }
 
@@ -185,7 +185,7 @@ impl Key {
         Ok(ret)
     }
 
-    pub fn to_x11_str(&self) -> &'_ str {
+    pub fn get_x11_str(&self) -> &'_ str {
         match self {
             Key::Esc => "Escape",
             Key::Key1 => "1",

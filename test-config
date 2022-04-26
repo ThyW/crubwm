@@ -7,4 +7,5 @@ keybind "<Alt><down>" focus "down"
 keybind "<Alt><left>" focus "left"
 keybind "<Alt><right>" focus "right"
 keybind "<Alt><k>" kill
+keybind "<Alt>i" execute "firefox-nightly"
 option "border_color" "#00ff00"

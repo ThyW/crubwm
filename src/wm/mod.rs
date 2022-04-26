@@ -8,6 +8,7 @@ use crate::{
 };
 
 pub mod actions;
+mod atoms;
 mod container;
 mod geometry;
 mod keyman;
@@ -83,7 +84,7 @@ impl Wm {
     fn handle_event(&mut self, event: Event) -> WmResult {
         match event {
             Event::Error(e) => {
-                let extension_name = e.extension_name.unwrap_or("Unknown".to_string());
+                let extension_name = e.extension_name.unwrap_or_else(|| "Unknown".to_string());
                 let request_name = e.request_name.unwrap_or("Unknown");
                 eprintln!(
                     "[ERR] X11 Error Event Received: error-kind -> {:?},
@@ -133,6 +134,10 @@ impl Wm {
             }
             Event::DestroyNotify(e) => {
                 self.state.unmanage_window(e.window)?;
+            }
+            Event::PropertyNotify(e) => {
+                #[cfg(debug_assertions)]
+                println!("property notify in window: {} atom: {}", e.window, e.atom);
             }
             _ev => {}
         };

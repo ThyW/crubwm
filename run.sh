@@ -16,7 +16,7 @@ Xephyr -ac -screen 800x600 +extension GLX "${NDISPLAY}" &
 xephyr=$!
 
 # run the wm on anoter display
-export DISPLAY="${NDISPLAY}"
+DISPLAY="${NDISPLAY}"
 
 # run the command specified in the command line arguments given to this script
 wm=""
