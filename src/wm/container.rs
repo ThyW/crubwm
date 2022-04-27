@@ -119,6 +119,10 @@ impl Container {
     pub fn data_mut(&mut self) -> &mut ContainerType {
         &mut self.container_type
     }
+
+    pub fn id(&self) -> &ContainerId {
+        &self.id
+    }
 }
 
 impl Default for ContainerType {
@@ -327,5 +331,32 @@ impl ContainerList {
             "container list node: unable to find a container for window id: {pid}"
         )
         .into());
+    }
+
+    // TODO: maybe make this wrap around or something, even go to the next workspace
+    pub fn next_for_id(&self, id: ContainerId) -> WmResult<&Container> {
+        if let Some(mut index) = self.inner_find(id) {
+            if index == self.containers.len() - 1 {
+                index = 0;
+            }
+            if let Some(cont) = self.containers.get(index + 1) {
+                return Ok(cont);
+            }
+        }
+
+        Err("container list error: unable to get next container!".into())
+    }
+
+    pub fn prev_for_id(&self, id: ContainerId) -> WmResult<&Container> {
+        if let Some(mut index) = self.inner_find(id) {
+            if index == 0 {
+                index = self.containers.len() - 1;
+            }
+            if let Some(cont) = self.containers.get(index - 1) {
+                return Ok(cont);
+            }
+        }
+
+        Err("container list error: unable to get next container!".into())
     }
 }

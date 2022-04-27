@@ -112,13 +112,13 @@ impl Wm {
                 #[cfg(debug_assertions)]
                 println!("leave: {}", e.event);
             }
-            Event::FocusIn(e) => {
-                #[cfg(debug_assertions)]
-                println!("focus in: {}", e.event)
+            Event::FocusIn(_) => {
+                /* #[cfg(debug_assertions)]
+                println!("focus in: {}", e.event) */
             }
-            Event::FocusOut(e) => {
-                #[cfg(debug_assertions)]
-                println!("focus out: {}", e.event)
+            Event::FocusOut(_) => {
+                /* #[cfg(debug_assertions)]
+                println!("focus out: {}", e.event) */
             }
             Event::ClientMessage(e) => {
                 #[cfg(debug_assertions)]

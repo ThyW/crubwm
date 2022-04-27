@@ -66,6 +66,13 @@ impl Workspace {
         Ok(())
     }
 
+    pub fn get_next(&self, c: ContainerId) -> WmResult<&Container> {
+        self.containers.next_for_id(c)
+    }
+    pub fn get_prev(&self, c: ContainerId) -> WmResult<&Container> {
+        self.containers.prev_for_id(c)
+    }
+
     pub fn _remove_pid(&mut self, wid: u32) -> WmResult {
         if let Ok(id) = self.containers.id_for_pid(wid) {
             self.containers.remove(id)?;

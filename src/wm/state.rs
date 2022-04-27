@@ -3,10 +3,11 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        AtomEnum, ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, KeyPressEvent,
-        KeyReleaseEvent, Screen,
+        AtomEnum, ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, InputFocus,
+        KeyPressEvent, KeyReleaseEvent, Screen,
     },
     rust_connection::RustConnection,
+    CURRENT_TIME,
 };
 
 use crate::{
@@ -15,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    actions::Action,
+    actions::{Action, Direction},
     container::{Client, ClientId, CT_TILING},
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
@@ -30,6 +31,7 @@ pub struct State {
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
     focused_client: Option<u32>,
+    previously_focused_client: Option<u32>,
     key_manager: KeyManager,
     last_client_id: ClientId,
     atoms: HashMap<String, u32>,
@@ -71,6 +73,7 @@ impl State {
             workspaces: Vec::new(),
             focused_workspace: None,
             focused_client: None,
+            previously_focused_client: None,
             key_manager: KeyManager::default(),
             last_client_id: 0,
             atoms,
@@ -325,6 +328,7 @@ impl State {
             id = ws.id;
         }
 
+        // give all windows their correct geometries
         if let Some(ws) = self.workspace_with_id(id) {
             for each in ws.get_all()? {
                 let g = each.data().geometry();
@@ -338,6 +342,12 @@ impl State {
             }
         }
 
+        // set input focus to previously focused client
+        if let Some(prev_wid) = self.previously_focused_client {
+            self.connection()
+                .set_input_focus(InputFocus::PARENT, prev_wid, CURRENT_TIME);
+        }
+
         Ok(())
     }
 
@@ -347,6 +357,7 @@ impl State {
     /// In the future, this will also handle the decorators, WM properties and other necessary
     /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
+        self.previously_focused_client = self.focused_client.clone();
         let _ = self.focused_client.insert(window);
         let mut id = 0;
 
@@ -405,9 +416,7 @@ impl State {
                 // self.handle_action_move(direction)?
             }
             Action::Execute(command) => self.handle_action_execute(command)?,
-            Action::Focus(_direction) => {
-                // self.handle_action_focus(direction)?
-            }
+            Action::Focus(direction) => self.handle_action_focus(direction)?,
         }
 
         Ok(())
@@ -435,6 +444,13 @@ impl State {
                             #[cfg(debug_assertions)]
                             println!("pid 1: {pid}");
                             std::process::Command::new("kill").arg(pid).spawn()?;
+                            if let Some(prev_wid) = self.previously_focused_client {
+                                self.connection().set_input_focus(
+                                    InputFocus::PARENT,
+                                    prev_wid,
+                                    CURRENT_TIME,
+                                )?;
+                            }
                             return Ok(());
                         }
                     }
@@ -460,11 +476,54 @@ impl State {
                 std::process::Command::new("kill")
                     .arg(format!("{pid}"))
                     .spawn()?;
+                if let Some(prev_wid) = self.previously_focused_client {
+                    self.connection().set_input_focus(
+                        InputFocus::PARENT,
+                        prev_wid,
+                        CURRENT_TIME,
+                    )?;
+                }
                 return Ok(());
             }
 
             self.connection().destroy_subwindows(wid)?;
             self.connection().destroy_window(wid)?;
+            if let Some(prev_wid) = self.previously_focused_client {
+                self.connection()
+                    .set_input_focus(InputFocus::PARENT, prev_wid, CURRENT_TIME)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_action_focus(&mut self, direction: Direction) -> WmResult {
+        if let Some(wid) = self.focused_client {
+            let ws = self.get_focused_ws()?;
+            let cont = ws.find_by_wid(wid)?;
+            let cid = cont.id();
+            let mut next = None;
+
+            match direction {
+                Direction::Right => {
+                    next = Some(ws.get_next(*cid));
+                }
+                Direction::Left => next = Some(ws.get_prev(*cid)),
+                Direction::Up => next = Some(ws.get_prev(*cid)),
+                Direction::Down => next = Some(ws.get_next(*cid)),
+            }
+
+            if let Some(cont) = next {
+                if let Some(next_wid) = cont?.data().wid() {
+                    self.connection().set_input_focus(
+                        InputFocus::PARENT,
+                        next_wid,
+                        x11rb::CURRENT_TIME,
+                    )?;
+                    self.focused_client = Some(next_wid);
+                    self.previously_focused_client = Some(wid);
+                }
+            }
         }
 
         Ok(())
