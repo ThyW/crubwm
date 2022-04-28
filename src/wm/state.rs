@@ -18,6 +18,7 @@ use crate::{
 use super::{
     actions::{Action, Direction},
     container::{Client, ClientId, CT_TILING},
+    focus_stack::FocusStack,
     geometry::Geometry,
     workspace::{Workspace, WorkspaceId},
 };
@@ -30,8 +31,7 @@ pub struct State {
     screen_index: usize,
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
-    focused_client: Option<u32>,
-    previously_focused_client: Option<u32>,
+    client_focus: FocusStack,
     key_manager: KeyManager,
     last_client_id: ClientId,
     atoms: HashMap<String, u32>,
@@ -72,8 +72,7 @@ impl State {
             screen_index,
             workspaces: Vec::new(),
             focused_workspace: None,
-            focused_client: None,
-            previously_focused_client: None,
+            client_focus: FocusStack::default(),
             key_manager: KeyManager::default(),
             last_client_id: 0,
             atoms,
@@ -283,6 +282,9 @@ impl State {
 
         self.update_windows(wsid)?;
         self.connection().map_window(wid)?;
+        self.connection()
+            .set_input_focus(InputFocus::NONE, wid, CURRENT_TIME)?;
+        self.client_focus.set_focused_client(wid);
 
         Ok(())
     }
@@ -343,9 +345,10 @@ impl State {
         }
 
         // set input focus to previously focused client
-        if let Some(prev_wid) = self.previously_focused_client {
+        if let Some(prev_wid) = self.client_focus.previously_focused_client() {
             self.connection()
-                .set_input_focus(InputFocus::PARENT, prev_wid, CURRENT_TIME);
+                .set_input_focus(InputFocus::NONE, prev_wid, CURRENT_TIME)?;
+            self.client_focus.remove_client(window);
         }
 
         Ok(())
@@ -357,8 +360,7 @@ impl State {
     /// In the future, this will also handle the decorators, WM properties and other necessary
     /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
-        self.previously_focused_client = self.focused_client.clone();
-        let _ = self.focused_client.insert(window);
+        self.client_focus.set_focused_client(window);
         let mut id = 0;
 
         if let Some(ws) = self.workspace_for_window(window) {
@@ -368,7 +370,7 @@ impl State {
         let _ = self.focused_workspace.insert(id);
 
         self.connection().set_input_focus(
-            x11rb::protocol::xproto::InputFocus::PARENT,
+            x11rb::protocol::xproto::InputFocus::NONE,
             window,
             x11rb::CURRENT_TIME,
         )?;
@@ -435,7 +437,7 @@ impl State {
 
     // TODO: should read wm hints for pid and kill the pid
     fn handle_action_kill(&mut self) -> WmResult {
-        if let Some(wid) = self.focused_client {
+        if let Some(wid) = self.client_focus.focused_client() {
             if let Some(ws) = self.workspace_for_window(wid) {
                 if let Ok(cont) = ws.find_by_wid(wid) {
                     if let Some(pid) = cont.data().pid() {
@@ -444,13 +446,6 @@ impl State {
                             #[cfg(debug_assertions)]
                             println!("pid 1: {pid}");
                             std::process::Command::new("kill").arg(pid).spawn()?;
-                            if let Some(prev_wid) = self.previously_focused_client {
-                                self.connection().set_input_focus(
-                                    InputFocus::PARENT,
-                                    prev_wid,
-                                    CURRENT_TIME,
-                                )?;
-                            }
                             return Ok(());
                         }
                     }
@@ -476,52 +471,37 @@ impl State {
                 std::process::Command::new("kill")
                     .arg(format!("{pid}"))
                     .spawn()?;
-                if let Some(prev_wid) = self.previously_focused_client {
-                    self.connection().set_input_focus(
-                        InputFocus::PARENT,
-                        prev_wid,
-                        CURRENT_TIME,
-                    )?;
-                }
                 return Ok(());
             }
 
             self.connection().destroy_subwindows(wid)?;
             self.connection().destroy_window(wid)?;
-            if let Some(prev_wid) = self.previously_focused_client {
-                self.connection()
-                    .set_input_focus(InputFocus::PARENT, prev_wid, CURRENT_TIME)?;
-            }
         }
 
         Ok(())
     }
 
     fn handle_action_focus(&mut self, direction: Direction) -> WmResult {
-        if let Some(wid) = self.focused_client {
+        if let Some(wid) = self.client_focus.focused_client() {
             let ws = self.get_focused_ws()?;
             let cont = ws.find_by_wid(wid)?;
             let cid = cont.id();
-            let mut next = None;
 
-            match direction {
-                Direction::Right => {
-                    next = Some(ws.get_next(*cid));
-                }
-                Direction::Left => next = Some(ws.get_prev(*cid)),
-                Direction::Up => next = Some(ws.get_prev(*cid)),
-                Direction::Down => next = Some(ws.get_next(*cid)),
-            }
+            let next = match direction {
+                Direction::Right => Some(ws.get_next(*cid)),
+                Direction::Left => Some(ws.get_prev(*cid)),
+                Direction::Up => Some(ws.get_prev(*cid)),
+                Direction::Down => Some(ws.get_next(*cid)),
+            };
 
             if let Some(cont) = next {
                 if let Some(next_wid) = cont?.data().wid() {
                     self.connection().set_input_focus(
-                        InputFocus::PARENT,
+                        InputFocus::NONE,
                         next_wid,
                         x11rb::CURRENT_TIME,
                     )?;
-                    self.focused_client = Some(next_wid);
-                    self.previously_focused_client = Some(wid);
+                    self.client_focus.set_focused_client(next_wid);
                 }
             }
         }
