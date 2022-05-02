@@ -53,16 +53,12 @@ impl KeyManager {
 
         for mod_key in &self.mod_keysyms {
             if (mod_key.mod_mask() & ev.state) != 0 {
-                #[cfg(debug_assertions)]
-                println!("pushing mod: {}", mod_key.name());
                 self.buff.push(mod_key.clone());
                 break;
             }
         }
 
         if !self.buff.contains(&keysym) {
-            #[cfg(debug_assertions)]
-            println!("pushing keysym: {}", keysym.name());
             self.buff.push(keysym);
         }
 

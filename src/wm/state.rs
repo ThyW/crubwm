@@ -88,8 +88,6 @@ impl State {
 
         for pair in codes {
             for code in pair.1 {
-                #[cfg(debug_assertions)]
-                println!("grabbing key: {code} with mod {}", pair.0);
                 self.connection().grab_key(
                     true,
                     self.root_window(),
@@ -155,6 +153,16 @@ impl State {
         None
     }
 
+    pub fn _workspace_with_id_mut(&mut self, id: u32) -> Option<&mut Workspace> {
+        for ws in &mut self.workspaces {
+            if ws.id == id {
+                return Some(ws);
+            }
+        }
+
+        None
+    }
+
     fn new_client_id(&mut self) -> ClientId {
         self.last_client_id += 1;
         self.last_client_id
@@ -171,7 +179,7 @@ impl State {
     /// In the future, this method should be loading workspace names, ids and indices from the
     /// Config structure.
     pub fn init_workspaces(&mut self) {
-        for i in 0..11 {
+        for i in 1..11 {
             self.workspaces.push(Workspace::new(format!("{i}"), i));
         }
 
@@ -186,7 +194,7 @@ impl State {
             }
         }
 
-        Err("workspace could not be found".into())
+        Err("focused workspace could not be found".into())
     }
 
     // Get a mutable reference to the focused workspace.
@@ -197,7 +205,7 @@ impl State {
             }
         }
 
-        Err("workspace could not be found".into())
+        Err("focused workspace could not be found".into())
     }
 
     /// Become a window manager, take control of all open windows in the X server.
@@ -241,15 +249,9 @@ impl State {
         let geometry = self.connection().get_geometry(wid)?.reply()?.into();
         let root_geom = self.root_geometry()?;
         let id = self.new_client_id();
-        let ws_container_id = self
-            .get_focused_ws_mut()?
+        self.get_focused_ws_mut()?
             .insert(Client::no_pid(wid, geometry, id), CT_TILING);
         self.get_focused_ws_mut()?.apply_layout(root_geom)?;
-
-        let new_geom = self.get_focused_ws()?.find(ws_container_id)?;
-        let new_geom = new_geom.data().geometry();
-        #[cfg(debug_assertions)]
-        println!("new window geometry: {}", new_geom);
 
         self.connection()
             .reparent_window(wid, self.root_window(), 0, 0)?;
@@ -263,22 +265,6 @@ impl State {
         self.connection()
             .change_window_attributes(wid, &cw_attributes)?;
         let wsid = self.get_focused_ws()?.id;
-
-        // get process pid
-        let pid_reply = self
-            .connection()
-            .get_property(
-                false,
-                wid,
-                *self.atoms.get("_NET_WM_PID").unwrap(),
-                AtomEnum::CARDINAL,
-                0,
-                1,
-            )?
-            .reply()?;
-        let pid: Vec<u32> = pid_reply.value32().unwrap().collect();
-        #[cfg(debug_assertions)]
-        println!("_NET_WM_PID: {}", pid[0]);
 
         self.update_windows(wsid)?;
         self.connection().map_window(wid)?;
@@ -361,7 +347,7 @@ impl State {
     /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
         self.client_focus.set_focused_client(window);
-        let mut id = 0;
+        let mut id = self.focused_workspace.unwrap();
 
         if let Some(ws) = self.workspace_for_window(window) {
             id = ws.id
@@ -374,9 +360,7 @@ impl State {
             window,
             x11rb::CURRENT_TIME,
         )?;
-        let window_with_input_focus = self.connection().get_input_focus()?.reply()?.focus;
-        #[cfg(debug_assertions)]
-        println!("focused window is: {window_with_input_focus}");
+
         self.connection().flush()?;
 
         Ok(())
@@ -411,9 +395,7 @@ impl State {
         match a {
             Action::Noop => {}
             Action::Kill => self.handle_action_kill()?,
-            Action::Goto(_direction) => {
-                // self.handle_action_goto(direction)?
-            }
+            Action::Goto(workspace) => self.handle_action_goto(workspace as u32)?,
             Action::Move(_direction) => {
                 // self.handle_action_move(direction)?
             }
@@ -425,6 +407,7 @@ impl State {
     }
 
     fn handle_action_execute(&mut self, command: String) -> WmResult {
+        // TODO: get rid of this on release
         let process = std::process::Command::new(command.clone())
             .env("DISPLAY", ":1")
             .spawn()?;
@@ -443,8 +426,6 @@ impl State {
                     if let Some(pid) = cont.data().pid() {
                         if pid != 0 {
                             let pid = format!("{pid}");
-                            #[cfg(debug_assertions)]
-                            println!("pid 1: {pid}");
                             std::process::Command::new("kill").arg(pid).spawn()?;
                             return Ok(());
                         }
@@ -505,6 +486,37 @@ impl State {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn handle_action_goto(&mut self, ws: u32) -> WmResult {
+        let workspace = self
+            .workspace_with_id(ws)
+            .ok_or(crate::errors::Error::Generic(format!(
+                "workspace error: unable to find workspace with id {ws}"
+            )))?;
+        let ws_id = workspace.id;
+        if let Some(current_workspace_id) = self.focused_workspace {
+            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
+                for each in current_workspace.get_all()? {
+                    if let Some(wid) = each.data().wid() {
+                        self.connection().unmap_subwindows(wid)?;
+                        self.connection().unmap_window(wid)?;
+                    }
+                }
+            }
+        }
+
+        self.update_windows(ws_id)?;
+
+        for each in workspace.get_all()? {
+            if let Some(wid) = each.data().wid() {
+                self.connection().map_window(wid)?;
+            }
+        }
+
+        self.focused_workspace = Some(ws);
 
         Ok(())
     }

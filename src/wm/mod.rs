@@ -10,6 +10,7 @@ use crate::{
 pub mod actions;
 mod atoms;
 mod container;
+mod focus_stack;
 mod geometry;
 mod keyman;
 mod layouts;
@@ -105,20 +106,14 @@ impl Wm {
             }
             Event::EnterNotify(e) => {
                 #[cfg(debug_assertions)]
-                println!("enter event: {}", e.event);
+                println!("[DEBUG]enter event: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
-            Event::LeaveNotify(e) => {
-                #[cfg(debug_assertions)]
-                println!("leave: {}", e.event);
+            Event::LeaveNotify(_) => {
             }
             Event::FocusIn(_) => {
-                /* #[cfg(debug_assertions)]
-                println!("focus in: {}", e.event) */
             }
             Event::FocusOut(_) => {
-                /* #[cfg(debug_assertions)]
-                println!("focus out: {}", e.event) */
             }
             Event::ClientMessage(e) => {
                 #[cfg(debug_assertions)]
@@ -135,9 +130,9 @@ impl Wm {
             Event::DestroyNotify(e) => {
                 self.state.unmanage_window(e.window)?;
             }
-            Event::PropertyNotify(e) => {
-                #[cfg(debug_assertions)]
-                println!("property notify in window: {} atom: {}", e.window, e.atom);
+            Event::PropertyNotify(_e) => {
+                /* #[cfg(debug_assertions)]
+                println!("property notify in window: {} atom: {}", e.window, e.atom); */
             }
             _ev => {}
         };
