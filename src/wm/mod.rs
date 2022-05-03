@@ -96,25 +96,22 @@ impl Wm {
                     e.error_kind, e.error_code, e.bad_value, extension_name, request_name
                 )
             }
-            Event::KeyPress(e) => self.state.handle_key_press(&e)?,
+            Event::KeyPress(e) => {
+                #[cfg(debug_assertions)]
+                println!("[DEBUG] key press mask: {}", e.state);
+                self.state.handle_key_press(&e)?;
+            }
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
             Event::MapRequest(e) => {
-                #[cfg(debug_assertions)]
-                println!("root window geometry: {}", self.state.root_geometry()?);
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
-                #[cfg(debug_assertions)]
-                println!("[DEBUG]enter event: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
-            Event::LeaveNotify(_) => {
-            }
-            Event::FocusIn(_) => {
-            }
-            Event::FocusOut(_) => {
-            }
+            Event::LeaveNotify(_) => {}
+            Event::FocusIn(_) => {}
+            Event::FocusOut(_) => {}
             Event::ClientMessage(e) => {
                 #[cfg(debug_assertions)]
                 println!("client message: {}", e.window);
@@ -131,8 +128,8 @@ impl Wm {
                 self.state.unmanage_window(e.window)?;
             }
             Event::PropertyNotify(_e) => {
-                /* #[cfg(debug_assertions)]
-                println!("property notify in window: {} atom: {}", e.window, e.atom); */
+                #[cfg(debug_assertions)]
+                println!("property notify in window: {} atom: {}", _e.window, _e.atom);
             }
             _ev => {}
         };

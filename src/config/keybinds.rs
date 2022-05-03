@@ -42,7 +42,7 @@ impl Keybinds {
     }
 
     /// Get the X11 keysym names and action associated with the keybind.
-    pub fn get_names_and_actions(&mut self) -> Vec<(Vec<&'_ str>, Action)> {
+    pub fn get_names_and_actions(&self) -> Vec<(Vec<&'_ str>, Action)> {
         let mut ret = Vec::with_capacity(self.0.len());
         for each in &self.0 {
             let names: Vec<&'_ str> = each.keys.iter().map(|k| k.get_x11_str()).collect();

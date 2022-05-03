@@ -81,12 +81,16 @@ impl State {
 
     /// Initiate the `KeyManager` with the Keybindings loaded in from a configuration file.
     pub fn init_keyman(&mut self, binds: Keybinds) -> WmResult {
-        self.key_manager.set_keybinds(binds);
         let dpy = self.display();
-        let codes = self.key_manager.grab_codes(dpy)?;
-        self.key_manager.init_mods()?;
+        self.key_manager.init(dpy, &binds)?;
+        let codes = self.key_manager.get_grab_codes(dpy, &binds)?;
+
+        // ungrab any key with any modifier
+        self.connection()
+            .ungrab_key(0, self.root_window(), 32768 as u16)?;
 
         for pair in codes {
+            println!("[DEBUG] grabbing mask: {} and keys: {:?}", pair.0, pair.1);
             for code in pair.1 {
                 self.connection().grab_key(
                     true,
@@ -368,8 +372,9 @@ impl State {
 
     /// Handle a key press event.
     pub fn handle_key_press(&mut self, ev: &KeyPressEvent) -> WmResult {
-        let disp = self.display();
-        let out = self.key_manager.key_press(ev, disp)?;
+        /* let disp = self.display();
+        let out = self.key_manager.key_press(ev, disp)?; */
+        let out = self.key_manager.key_press(ev)?;
         if let Some(action) = out {
             self.do_action(action)?
         }
@@ -379,8 +384,9 @@ impl State {
 
     /// Handle a key release event.
     pub fn handle_key_release(&mut self, ev: &KeyReleaseEvent) -> WmResult {
-        let d = self.display();
-        self.key_manager.key_release(ev, d)?;
+        /* let d = self.display();
+        self.key_manager.key_release(ev, d)?; */
+        self.key_manager.key_release(ev)?;
         Ok(())
     }
 
@@ -396,9 +402,7 @@ impl State {
             Action::Noop => {}
             Action::Kill => self.handle_action_kill()?,
             Action::Goto(workspace) => self.handle_action_goto(workspace as u32)?,
-            Action::Move(_direction) => {
-                // self.handle_action_move(direction)?
-            }
+            Action::Move(workspace) => self.handle_action_move(workspace as u32)?,
             Action::Execute(command) => self.handle_action_execute(command)?,
             Action::Focus(direction) => self.handle_action_focus(direction)?,
         }
@@ -490,7 +494,7 @@ impl State {
         Ok(())
     }
 
-    fn handle_action_goto(&mut self, ws: u32) -> WmResult {
+    fn handle_action_goto(&mut self, ws: WorkspaceId) -> WmResult {
         let workspace = self
             .workspace_with_id(ws)
             .ok_or(crate::errors::Error::Generic(format!(
@@ -518,6 +522,15 @@ impl State {
 
         self.focused_workspace = Some(ws);
 
+        Ok(())
+    }
+
+    fn handle_action_move(&mut self, _ws: WorkspaceId) -> WmResult {
+        // get currently focused client id, retrieve it from its workspace, find the other
+        // workspace and move the client to that second workspace
+        if let Some(_focused_wid) = self.client_focus.focused_client() {
+            todo!("client focus should be done per workspace")
+        }
         Ok(())
     }
 }
