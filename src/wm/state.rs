@@ -11,7 +11,10 @@ use x11rb::{
 };
 
 use crate::{
-    config::Keybinds, errors::WmResult, wm::atoms::AtomManager, wm::keyman::KeyManager,
+    config::Keybinds,
+    errors::{Error, WmResult},
+    wm::atoms::AtomManager,
+    wm::keyman::KeyManager,
     wm::workspace::Workspaces,
 };
 
@@ -87,7 +90,7 @@ impl State {
 
         // ungrab any key with any modifier
         self.connection()
-            .ungrab_key(0, self.root_window(), 32768 as u16)?;
+            .ungrab_key(0, self.root_window(), 32768_u16)?;
 
         for pair in codes {
             println!("[DEBUG] grabbing mask: {} and keys: {:?}", pair.0, pair.1);
@@ -157,7 +160,7 @@ impl State {
         None
     }
 
-    pub fn _workspace_with_id_mut(&mut self, id: u32) -> Option<&mut Workspace> {
+    pub fn workspace_with_id_mut(&mut self, id: u32) -> Option<&mut Workspace> {
         for ws in &mut self.workspaces {
             if ws.id == id {
                 return Some(ws);
@@ -495,11 +498,11 @@ impl State {
     }
 
     fn handle_action_goto(&mut self, ws: WorkspaceId) -> WmResult {
-        let workspace = self
-            .workspace_with_id(ws)
-            .ok_or(crate::errors::Error::Generic(format!(
+        let workspace = self.workspace_with_id(ws).ok_or_else(|| {
+            crate::errors::Error::Generic(format!(
                 "workspace error: unable to find workspace with id {ws}"
-            )))?;
+            ))
+        })?;
         let ws_id = workspace.id;
         if let Some(current_workspace_id) = self.focused_workspace {
             if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
@@ -528,11 +531,29 @@ impl State {
     fn handle_action_move(&mut self, ws: WorkspaceId) -> WmResult {
         // get currently focused client id, retrieve it from its workspace, find the other
         // workspace and move the client to that second workspace
-        if let Some(focused_wid) = self.client_focus.focused_client() {
-            if let Some(current_workspace) = self.workspace_for_window_mut(focused_wid) {
-                if let Some(other_workspace) = self.workspace_with_id(ws)
-            }
+        let focused_client = self
+            .client_focus
+            .focused_client()
+            .ok_or_else(|| Error::Generic("move error: no focused client".into()))?;
+        let g = self.root_geometry()?;
+        self.connection().unmap_subwindows(focused_client)?;
+        self.connection().unmap_window(focused_client)?;
+        let focused_workspace = self
+            .workspace_for_window_mut(focused_client)
+            .ok_or_else(|| {
+                Error::Generic("move error: workspace for focused window not found".into())
+            })?;
+        let id = focused_workspace.id;
+        let container = focused_workspace.remove_return_wid(focused_client)?;
+        focused_workspace.apply_layout(g)?;
+        if let Some(other_workspace) = self.workspace_with_id_mut(ws) {
+            other_workspace.insert_full(container)?;
+            other_workspace.apply_layout(g)?;
         }
+
+        self.update_windows(id)?;
+        self.update_windows(ws)?;
+
         Ok(())
     }
 }

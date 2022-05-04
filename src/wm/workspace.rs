@@ -66,6 +66,16 @@ impl Workspace {
         Ok(())
     }
 
+    pub fn remove_return_wid(&mut self, wid: u32) -> WmResult<Container> {
+        if let Ok(id) = self.containers.id_for_wid(wid) {
+            return self.containers.remove(id);
+        }
+
+        Err(crate::errors::Error::Generic(format!(
+            "workspace error: unable to find client with window id {wid} to remove"
+        )))
+    }
+
     pub fn get_next(&self, c: ContainerId) -> WmResult<&Container> {
         self.containers.next_for_id(c)
     }
@@ -104,18 +114,7 @@ impl Workspace {
         Ok(self.containers.get_all())
     }
 
-    pub fn move_container<I: Into<ContainerId>>(
-        &mut self,
-        what: I,
-        other: &mut Self,
-    ) -> WmResult<ContainerId> {
-        let container_id: ContainerId = what.into();
-        let container = self.containers.remove(container_id)?;
-
-        return Ok(other.insert_full(container)?);
-    }
-
-    pub fn insert_full(&mut self, container: Container) -> WmResult {
+    pub fn insert_full(&mut self, container: Container) -> WmResult<ContainerId> {
         self.containers.insert_back_full(container)
     }
 }

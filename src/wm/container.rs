@@ -360,7 +360,10 @@ impl ContainerList {
         Err("container list error: unable to get next container!".into())
     }
 
-    pub fn insert_back_full(&self, container: Container) -> WmResult {
-        Ok(())
+    pub fn insert_back_full(&mut self, mut container: Container) -> WmResult<ContainerId> {
+        let new_id = self.new_id();
+        container.id = new_id;
+        self.containers.push_back(container);
+        Ok(new_id)
     }
 }

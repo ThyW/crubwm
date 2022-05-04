@@ -34,14 +34,8 @@ impl Hook {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StartHooks(Vec<Hook>);
-
-impl Default for StartHooks {
-    fn default() -> Self {
-        Self(vec![])
-    }
-}
 
 impl StartHooks {
     pub fn add(&mut self, hook_type: String, hook_args: Vec<String>) -> WmResult {
