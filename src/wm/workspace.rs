@@ -103,6 +103,21 @@ impl Workspace {
     pub(crate) fn get_all(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {
         Ok(self.containers.get_all())
     }
+
+    pub fn move_container<I: Into<ContainerId>>(
+        &mut self,
+        what: I,
+        other: &mut Self,
+    ) -> WmResult<ContainerId> {
+        let container_id: ContainerId = what.into();
+        let container = self.containers.remove(container_id)?;
+
+        return Ok(other.insert_full(container)?);
+    }
+
+    pub fn insert_full(&mut self, container: Container) -> WmResult {
+        self.containers.insert_back_full(container)
+    }
 }
 
 pub type WorkspaceId = u32;

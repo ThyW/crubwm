@@ -359,4 +359,8 @@ impl ContainerList {
 
         Err("container list error: unable to get next container!".into())
     }
+
+    pub fn insert_back_full(&self, container: Container) -> WmResult {
+        Ok(())
+    }
 }

@@ -525,11 +525,13 @@ impl State {
         Ok(())
     }
 
-    fn handle_action_move(&mut self, _ws: WorkspaceId) -> WmResult {
+    fn handle_action_move(&mut self, ws: WorkspaceId) -> WmResult {
         // get currently focused client id, retrieve it from its workspace, find the other
         // workspace and move the client to that second workspace
-        if let Some(_focused_wid) = self.client_focus.focused_client() {
-            todo!("client focus should be done per workspace")
+        if let Some(focused_wid) = self.client_focus.focused_client() {
+            if let Some(current_workspace) = self.workspace_for_window_mut(focused_wid) {
+                if let Some(other_workspace) = self.workspace_with_id(ws)
+            }
         }
         Ok(())
     }
