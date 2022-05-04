@@ -11,6 +11,7 @@ pub enum Error {
     X11Reply(x11rb::errors::ReplyError),
     Borrow(std::cell::BorrowError),
     BorrowMut(std::cell::BorrowMutError),
+    Null(std::ffi::NulError),
 }
 
 impl From<std::io::Error> for Error {
@@ -84,6 +85,12 @@ impl From<std::str::Utf8Error> for Error {
     }
 }
 
+impl From<std::ffi::NulError> for Error {
+    fn from(e: std::ffi::NulError) -> Self {
+        Self::Null(e)
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -98,6 +105,7 @@ impl std::fmt::Display for Error {
             Self::X11Connection(e) => write!(f, "[ERR] {}", e),
             Self::FromUtf8(e) => write!(f, "[ERR] {}", e),
             Self::Utf8(e) => write!(f, "[ERR] {}", e),
+            Self::Null(e) => write!(f, "[ERR] {}", e),
         }
     }
 }

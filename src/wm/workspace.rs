@@ -26,22 +26,12 @@ impl Workspace {
         self.containers.id_for_wid(wid).is_ok()
     }
 
-    pub fn find_by_wid(&self, wid: u32) -> WmResult<&Container> {
+    pub fn find_by_window_id(&self, wid: u32) -> WmResult<&Container> {
         let id = self.containers.id_for_wid(wid)?;
         self.find(id)
     }
 
-    /// Contains a client with the given process id?
-    pub fn _contains_pid(&self, pid: u32) -> bool {
-        self.containers.id_for_pid(pid).is_ok()
-    }
-
-    /// Contains a client with the given container id?
-    pub fn _contains<I: Into<ContainerId> + Copy>(&self, id: I) -> bool {
-        self.containers.find(id.into()).is_ok()
-    }
-
-    pub fn insert(&mut self, c: Client, t: u8) -> ContainerId {
+    pub fn insert_client(&mut self, c: Client, t: u8) -> ContainerId {
         self.containers.insert_back(c, t)
     }
 
@@ -58,7 +48,7 @@ impl Workspace {
         self.layout.apply(screen, self.containers.get_all_mut())
     }
 
-    pub fn remove_wid(&mut self, wid: u32) -> WmResult {
+    pub fn remove_window(&mut self, wid: u32) -> WmResult {
         if let Ok(id) = self.containers.id_for_wid(wid) {
             self.containers.remove(id)?;
         };
@@ -66,7 +56,7 @@ impl Workspace {
         Ok(())
     }
 
-    pub fn remove_return_wid(&mut self, wid: u32) -> WmResult<Container> {
+    pub fn remove_and_return_window(&mut self, wid: u32) -> WmResult<Container> {
         if let Ok(id) = self.containers.id_for_wid(wid) {
             return self.containers.remove(id);
         }
@@ -76,45 +66,22 @@ impl Workspace {
         )))
     }
 
-    pub fn get_next(&self, c: ContainerId) -> WmResult<&Container> {
+    pub fn next_container(&self, c: ContainerId) -> WmResult<&Container> {
         self.containers.next_for_id(c)
     }
-    pub fn get_prev(&self, c: ContainerId) -> WmResult<&Container> {
+    pub fn previous_container(&self, c: ContainerId) -> WmResult<&Container> {
         self.containers.prev_for_id(c)
     }
 
-    pub fn _remove_pid(&mut self, wid: u32) -> WmResult {
-        if let Ok(id) = self.containers.id_for_pid(wid) {
-            self.containers.remove(id)?;
-        };
-
-        Ok(())
-    }
-
-    pub(crate) fn find<I: Into<ContainerId> + Copy>(&self, id: I) -> WmResult<&Container> {
+    pub fn find<I: Into<ContainerId> + Copy>(&self, id: I) -> WmResult<&Container> {
         self.containers.find(id.into())
     }
 
-    pub(crate) fn _find_many<I: Into<ContainerId> + Copy>(
-        &self,
-        ids: Vec<I>,
-    ) -> WmResult<Vec<&Container>> {
-        let mut ret = Vec::new();
-
-        for id in ids {
-            if let Ok(c) = self.containers.find(id.into()) {
-                ret.push(c)
-            }
-        }
-
-        Ok(ret)
-    }
-
-    pub(crate) fn get_all(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {
+    pub fn iter_containers(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {
         Ok(self.containers.get_all())
     }
 
-    pub fn insert_full(&mut self, container: Container) -> WmResult<ContainerId> {
+    pub fn insert_container(&mut self, container: Container) -> WmResult<ContainerId> {
         self.containers.insert_back_full(container)
     }
 }

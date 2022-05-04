@@ -25,3 +25,4 @@ keybind "<Alt>n" focus "right"
 keybind "<Alt><k>" kill
 keybind "<Alt>i" execute "firefox-nightly"
 option "border_color" "#00ff00"
+hook "startup" "notify-send 'hello world'"

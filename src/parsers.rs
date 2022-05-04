@@ -227,7 +227,7 @@ impl TryFrom<String> for ConfigLine {
 
     fn try_from(line: String) -> WmResult<Self> {
         #[cfg(debug_assertions)]
-        println!("{line}");
+        println!("[DEBUG] parsing config line: {line}");
         if let Some(s) = line.strip_prefix("keybind ") {
             let rest_of_line = s;
             let parser = LineParser::parse(rest_of_line.to_string());

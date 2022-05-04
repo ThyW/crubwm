@@ -24,21 +24,19 @@ impl KeyManager {
         let mut managed_keybinds: Vec<ManagedKeybind> = Vec::new();
 
         for (names, action) in keybinds.get_names_and_actions() {
-            let mut masked_keys_pair = (0, Vec::new());
+            let (mut mask, mut key_codes) = (0, Vec::new());
             for name in names {
                 let mut keysym = Keysym::lookup_string(dpy, name)?;
                 if keysym.is_mod() {
-                    masked_keys_pair.0 |= keysym.mod_mask();
-                    #[cfg(debug_assertions)]
-                    println!("mod mask: {}", keysym.name());
+                    mask |= keysym.mod_mask();
                 } else {
-                    masked_keys_pair.1.push(keysym.try_get_keycode(dpy)?)
+                    key_codes.push(keysym.try_get_keycode(dpy)?)
                 }
             }
 
             managed_keybinds.push(ManagedKeybind {
-                mask: masked_keys_pair.0,
-                codes: masked_keys_pair.1,
+                mask,
+                codes: key_codes,
                 action,
             })
         }
@@ -50,7 +48,7 @@ impl KeyManager {
 
     /// Get a list of modifier key masks and a list of key codes.
     /// These values are used to "grab" these keys in the X server.
-    pub fn get_grab_codes(
+    pub fn get_codes_to_grab(
         &self,
         dpy: *mut Display,
         keybinds: &Keybinds,
@@ -73,15 +71,12 @@ impl KeyManager {
     }
 
     /// What to do on key press.
-    pub fn key_press(
+    pub fn on_key_press(
         &mut self,
         ev: &x11rb::protocol::xproto::KeyPressEvent,
     ) -> WmResult<Option<Action>> {
         self.keys.push(ev.detail);
         self.mask = ev.state;
-        #[cfg(debug_assertions)]
-        println!("Keys and mask: {:?}, {}", self.keys, self.mask);
-
         for keybind in &self.managed_keybinds {
             if self.keys == keybind.codes && self.mask == keybind.mask {
                 return Ok(Some(keybind.action.clone()));
@@ -91,7 +86,7 @@ impl KeyManager {
         Ok(None)
     }
 
-    pub fn key_release(&mut self, _ev: &x11rb::protocol::xproto::KeyReleaseEvent) -> WmResult {
+    pub fn on_key_release(&mut self, _ev: &x11rb::protocol::xproto::KeyReleaseEvent) -> WmResult {
         self.keys.clear();
         self.mask = 0;
         Ok(())
