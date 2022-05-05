@@ -15,7 +15,7 @@ use crate::{
     errors::{Error, WmResult},
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
-    wm::container::{Client, ClientId, CT_TILING},
+    wm::container::{Client, ClientId, CT_MASK_TILING},
     wm::focus_stack::FocusStack,
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
@@ -253,7 +253,7 @@ impl State {
         let ws = self.workspace_with_id(wsid);
         if let Some(w) = ws {
             for win in w.iter_containers()? {
-                if let Some(wid) = win.data().wid() {
+                if let Some(wid) = win.data().window_id() {
                     self.connection()
                         .configure_window(wid, &win.data().geometry().into())?;
                 }
@@ -265,16 +265,19 @@ impl State {
 
     /// Let a window be managed by the window manager.
     pub fn manage_window(&mut self, window: u32) -> WmResult {
-        let geometry = self.connection().get_geometry(window)?.reply()?.into();
+        let geometry = self.connection().get_geometry(window)?.reply()?;
         let root_window_geometry = self.root_geometry()?;
         let new_client_id = self.new_client_id();
-        self.get_focused_workspace_mut()?
-            .insert_client(Client::no_pid(window, geometry, new_client_id), CT_TILING);
+
+        self.get_focused_workspace_mut()?.insert_client(
+            Client::new_without_process_id(window, geometry, new_client_id),
+            CT_MASK_TILING,
+        );
         self.get_focused_workspace_mut()?
             .apply_layout(root_window_geometry)?;
-
         self.connection()
             .reparent_window(window, self.root_window(), 0, 0)?;
+
         let old_event_mask = self
             .connection()
             .get_window_attributes(window)?
@@ -282,8 +285,10 @@ impl State {
             .your_event_mask;
         let cw_attributes = ChangeWindowAttributesAux::new()
             .event_mask(old_event_mask | EventMask::ENTER_WINDOW | EventMask::FOCUS_CHANGE);
+
         self.connection()
             .change_window_attributes(window, &cw_attributes)?;
+
         let workspace_id = self.get_focused_workspace()?.id;
 
         self.update_windows(workspace_id)?;
@@ -308,10 +313,13 @@ impl State {
                 .iter()
                 .enumerate()
                 .map(|(index, (window, geometry))| {
-                    Client::no_pid(*window, *geometry, new_client_ids[index])
+                    Client::new_without_process_id(*window, *geometry, new_client_ids[index])
                 })
                 .collect(),
-            windows_and_geometries.iter().map(|_| CT_TILING).collect(),
+            windows_and_geometries
+                .iter()
+                .map(|_| CT_MASK_TILING)
+                .collect(),
         );
         self.get_focused_workspace_mut()?
             .apply_layout(root_window_geometry)?;
@@ -437,7 +445,7 @@ impl State {
         if let Some(window) = self.client_focus.focused_client() {
             if let Some(workspace) = self.workspace_for_window(window) {
                 if let Ok(container) = workspace.find_by_window_id(window) {
-                    if let Some(process_id) = container.data().pid() {
+                    if let Some(process_id) = container.data().process_id() {
                         if process_id != 0 {
                             let pid = format!("{process_id}");
                             std::process::Command::new("kill").arg(pid).spawn()?;
@@ -490,7 +498,7 @@ impl State {
             };
 
             if let Some(container_to_focus) = container_to_focus_option {
-                if let Some(window_to_focus) = container_to_focus?.data().wid() {
+                if let Some(window_to_focus) = container_to_focus?.data().window_id() {
                     self.connection().set_input_focus(
                         InputFocus::NONE,
                         window_to_focus,
@@ -513,7 +521,7 @@ impl State {
         if let Some(current_workspace_id) = self.focused_workspace {
             if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
                 for each in current_workspace.iter_containers()? {
-                    if let Some(wid) = each.data().wid() {
+                    if let Some(wid) = each.data().window_id() {
                         self.connection().unmap_subwindows(wid)?;
                         self.connection().unmap_window(wid)?;
                     }
@@ -524,7 +532,7 @@ impl State {
         self.update_windows(workspace_id)?;
 
         for container in workspace.iter_containers()? {
-            if let Some(window) = container.data().wid() {
+            if let Some(window) = container.data().window_id() {
                 self.connection().map_window(window)?;
             }
         }

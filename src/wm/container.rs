@@ -1,13 +1,11 @@
 #![allow(dead_code)]
 use std::collections::VecDeque;
 
-use crate::errors::WmResult;
+use crate::{errors::WmResult, wm::geometry::Geometry};
 
-pub const CT_TILING: u8 = 1 << 0;
-pub const CT_FLOATING: u8 = 1 << 1;
-pub const CT_EMPTY: u8 = 1 << 2;
-
-use super::geometry::Geometry;
+pub const CT_MASK_TILING: u8 = 1 << 0;
+pub const CT_MASK_FLOATING: u8 = 1 << 1;
+pub const CT_MASK_EMPTY: u8 = 1 << 2;
 
 /// Unique identifier for a client.
 pub type ClientId = u64;
@@ -20,10 +18,10 @@ pub struct ContainerId {
 }
 
 impl ContainerId {
-    pub fn new<I: Into<u32>>(ws: I, new_id: I) -> Self {
+    pub fn new<I: Into<u32>>(workspace_id: I, container_id: I) -> Self {
         Self {
-            workspace_id: ws.into(),
-            container_id: new_id.into(),
+            workspace_id: workspace_id.into(),
+            container_id: container_id.into(),
         }
     }
 
@@ -50,39 +48,48 @@ impl std::fmt::Display for ContainerId {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Client {
-    wid: u32,
-    pid: u32,
+    window_id: u32,
+    process_id: u32,
     pub geometry: Geometry,
-    cid: ClientId,
+    client_id: ClientId,
 }
 
 impl Client {
-    pub fn new(wid: u32, pid: u32, geometry: Geometry, cid: ClientId) -> Self {
+    pub fn new<I: Into<u32>, C: Into<ClientId>, G: Into<Geometry>>(
+        window_id: I,
+        process_id: I,
+        geometry: G,
+        client_id: C,
+    ) -> Self {
         Self {
-            wid,
-            pid,
-            geometry,
-            cid,
+            window_id: window_id.into(),
+            process_id: process_id.into(),
+            geometry: geometry.into(),
+            client_id: client_id.into(),
         }
     }
 
-    pub fn no_pid(wid: u32, geometry: Geometry, cid: ClientId) -> Self {
+    pub fn new_without_process_id<I: Into<u32>, C: Into<ClientId>, G: Into<Geometry>>(
+        window_id: I,
+        geometry: G,
+        client_id: C,
+    ) -> Self {
         Self {
-            wid,
-            pid: 0,
-            geometry,
-            cid,
+            window_id: window_id.into(),
+            process_id: 0,
+            geometry: geometry.into(),
+            client_id: client_id.into(),
         }
     }
 
-    pub fn wid(&self) -> u32 {
-        self.wid
+    pub fn window_id(&self) -> u32 {
+        self.window_id
     }
-    pub fn pid(&self) -> Option<u32> {
-        if self.pid == 0 {
+    pub fn process_id(&self) -> Option<u32> {
+        if self.process_id == 0 {
             return None;
         }
-        Some(self.pid)
+        Some(self.process_id)
     }
     pub fn geometry(&self) -> Geometry {
         self.geometry
@@ -99,17 +106,24 @@ pub enum ContainerType {
 #[derive(Debug, Clone)]
 pub struct Container {
     container_type: ContainerType,
-    id: ContainerId,
+    container_id: ContainerId,
 }
 
 impl Container {
-    pub fn new(c: Client, id: ContainerId, contype: u8) -> Self {
-        let container_type = match contype {
-            CT_FLOATING => ContainerType::new(c).into_floating().unwrap(),
-            _ => ContainerType::new(c),
+    pub fn new<C: Into<Client>, I: Into<ContainerId>, T: Into<u8>>(
+        client: C,
+        id: I,
+        container_type_mask: T,
+    ) -> Self {
+        let container_type = match container_type_mask.into() {
+            CT_MASK_FLOATING => ContainerType::new(client.into()).into_floating().unwrap(),
+            _ => ContainerType::new(client.into()),
         };
 
-        Self { container_type, id }
+        Self {
+            container_type,
+            container_id: id.into(),
+        }
     }
 
     pub fn data(&self) -> &ContainerType {
@@ -121,7 +135,7 @@ impl Container {
     }
 
     pub fn id(&self) -> &ContainerId {
-        &self.id
+        &self.container_id
     }
 }
 
@@ -133,12 +147,12 @@ impl Default for ContainerType {
 
 impl ContainerType {
     /// Create a new, in-layout container.
-    pub fn new(c: Client) -> Self {
+    fn new(c: Client) -> Self {
         Self::InLayout(c)
     }
 
     /// Turn an in-layout container to a floating container.
-    pub fn into_floating(self) -> Option<Self> {
+    fn into_floating(self) -> Option<Self> {
         match self {
             Self::InLayout(c) => Some(Self::Floating(c)),
             Self::Floating(_) => Some(self),
@@ -147,7 +161,7 @@ impl ContainerType {
     }
 
     /// Turn a floating container into an in-layout one.
-    pub fn into_layout(self) -> Option<Self> {
+    fn into_layout(self) -> Option<Self> {
         match self {
             Self::InLayout(_) => Some(self),
             Self::Floating(c) => Some(Self::InLayout(c)),
@@ -157,7 +171,7 @@ impl ContainerType {
 
     /// If the container is not empty, return the Client of this container and make the container
     /// empty.
-    pub fn take(&mut self) -> Option<Client> {
+    fn take(&mut self) -> Option<Client> {
         let c = match self {
             Self::InLayout(c) => Some(*c),
             Self::Floating(c) => Some(*c),
@@ -183,29 +197,29 @@ impl ContainerType {
     }
 
     /// Return client window id, if the container is empty, retrun `None`.
-    pub fn wid(&self) -> Option<u32> {
+    pub fn window_id(&self) -> Option<u32> {
         match self {
             Self::Empty(_) => None,
-            Self::InLayout(c) => Some(c.wid),
-            Self::Floating(c) => Some(c.wid),
+            Self::InLayout(c) => Some(c.window_id),
+            Self::Floating(c) => Some(c.window_id),
         }
     }
 
     /// Return client process id, if the container is empty, return `None`.
-    pub fn pid(&self) -> Option<u32> {
+    pub fn process_id(&self) -> Option<u32> {
         match self {
             Self::Empty(_) => None,
             Self::InLayout(c) => {
-                if c.pid == 0 {
+                if c.process_id == 0 {
                     return None;
                 }
-                Some(c.pid)
+                Some(c.process_id)
             }
             Self::Floating(c) => {
-                if c.pid == 0 {
+                if c.process_id == 0 {
                     return None;
                 }
-                Some(c.pid)
+                Some(c.process_id)
             }
         }
     }
@@ -236,7 +250,12 @@ impl ContainerList {
         if !id.workspace() == self.workspace_id {
             None
         } else {
-            if let Some((index, _)) = self.containers.iter().enumerate().find(|(_, c)| c.id == id) {
+            if let Some((index, _)) = self
+                .containers
+                .iter()
+                .enumerate()
+                .find(|(_, c)| c.container_id == id)
+            {
                 return Some(index);
             }
 
@@ -244,23 +263,33 @@ impl ContainerList {
         }
     }
 
-    pub fn insert_front(&mut self, c: Client, cont_type: u8) -> ContainerId {
+    pub fn insert_front<C: Into<Client>, I: Into<u8>>(
+        &mut self,
+        client: C,
+        container_type_mask: I,
+    ) -> ContainerId {
         let id = self.new_id();
-        let cont = Container::new(c, id, cont_type);
+        let cont = Container::new(client, id, container_type_mask);
         self.containers.push_front(cont);
 
         id
     }
 
-    pub fn insert_back(&mut self, c: Client, cont_type: u8) -> ContainerId {
+    pub fn insert_back<C: Into<Client>, I: Into<u8>>(
+        &mut self,
+        client: C,
+        container_type_mask: I,
+    ) -> ContainerId {
         let id = self.new_id();
-        let cont = Container::new(c, id, cont_type);
+        let cont = Container::new(client, id, container_type_mask);
         self.containers.push_back(cont);
 
         id
     }
 
-    pub fn swap(&mut self, a: ContainerId, b: ContainerId) -> WmResult {
+    pub fn swap<I: Into<ContainerId>>(&mut self, a: I, b: I) -> WmResult {
+        let a = a.into();
+        let b = b.into();
         if let Some(a) = self.inner_find(a) {
             if let Some(b) = self.inner_find(b) {
                 self.containers.swap(a, b);
@@ -271,43 +300,47 @@ impl ContainerList {
         return Err(format!("container list error: wrong container id -> {a}").into());
     }
 
-    pub fn remove(&mut self, cid: ContainerId) -> WmResult<Container> {
-        if let Some(i) = self.inner_find(cid) {
+    pub fn remove<C: Into<ContainerId>>(&mut self, container_id: C) -> WmResult<Container> {
+        let c = container_id.into();
+        if let Some(i) = self.inner_find(c) {
             if let Some(c) = self.containers.remove(i) {
                 return Ok(c);
             }
-            return Err(format!("container list error: unable to find {cid}").into());
+            return Err(format!("container list error: unable to find {c}").into());
         }
-        return Err(format!("container list error: unable to remove {cid}").into());
+        return Err(format!("container list error: unable to remove {c}").into());
     }
 
-    pub fn get_all_mut(&mut self) -> std::collections::vec_deque::IterMut<Container> {
+    pub fn iter_mut(&mut self) -> std::collections::vec_deque::IterMut<Container> {
         self.containers.iter_mut()
     }
 
-    pub fn get_all(&self) -> std::collections::vec_deque::Iter<Container> {
+    pub fn iter(&self) -> std::collections::vec_deque::Iter<Container> {
         self.containers.iter()
     }
 
-    pub fn find_mut(&mut self, cid: ContainerId) -> WmResult<&mut Container> {
-        if let Some(i) = self.inner_find(cid) {
+    pub fn find_mut<C: Into<ContainerId>>(&mut self, container_id: C) -> WmResult<&mut Container> {
+        let c = container_id.into();
+        if let Some(i) = self.inner_find(c) {
             return Ok(&mut self.containers[i]);
         }
-        return Err(format!("container list error: unable to find {cid}").into());
+        return Err(format!("container list error: unable to find {}", c).into());
     }
 
-    pub fn find(&self, cid: ContainerId) -> WmResult<&Container> {
-        if let Some(i) = self.inner_find(cid) {
+    pub fn find<C: Into<ContainerId>>(&self, container_id: C) -> WmResult<&Container> {
+        let c = container_id.into();
+        if let Some(i) = self.inner_find(c) {
             return Ok(&self.containers[i]);
         }
-        return Err(format!("container list error: unable to find {cid}").into());
+        return Err(format!("container list error: unable to find {c}").into());
     }
 
-    pub fn id_for_wid(&self, wid: u32) -> WmResult<ContainerId> {
+    pub fn id_for_window<I: Into<u32>>(&self, window_id: I) -> WmResult<ContainerId> {
+        let wid = window_id.into();
         for c in &self.containers {
-            if let Some(cwid) = c.container_type.wid() {
+            if let Some(cwid) = c.container_type.window_id() {
                 if wid == cwid {
-                    return Ok(c.id);
+                    return Ok(c.container_id);
                 }
             }
         }
@@ -318,11 +351,12 @@ impl ContainerList {
         .into());
     }
 
-    pub fn id_for_pid(&self, pid: u32) -> WmResult<ContainerId> {
+    pub fn id_for_process<I: Into<u32>>(&self, process_id: I) -> WmResult<ContainerId> {
+        let pid = process_id.into();
         for c in &self.containers {
-            if let Some(cpid) = c.container_type.pid() {
+            if let Some(cpid) = c.container_type.process_id() {
                 if pid == cpid {
-                    return Ok(c.id);
+                    return Ok(c.container_id);
                 }
             }
         }
@@ -333,9 +367,8 @@ impl ContainerList {
         .into());
     }
 
-    // TODO: maybe make this wrap around or something, even go to the next workspace
-    pub fn next_for_id(&self, id: ContainerId) -> WmResult<&Container> {
-        if let Some(mut index) = self.inner_find(id) {
+    pub fn next_for_id<C: Into<ContainerId>>(&self, id: C) -> WmResult<&Container> {
+        if let Some(mut index) = self.inner_find(id.into()) {
             if index == self.containers.len() - 1 {
                 index = 0;
             }
@@ -347,8 +380,8 @@ impl ContainerList {
         Err("container list error: unable to get next container!".into())
     }
 
-    pub fn prev_for_id(&self, id: ContainerId) -> WmResult<&Container> {
-        if let Some(mut index) = self.inner_find(id) {
+    pub fn previous_for_id<C: Into<ContainerId>>(&self, id: C) -> WmResult<&Container> {
+        if let Some(mut index) = self.inner_find(id.into()) {
             if index == 0 {
                 index = self.containers.len() - 1;
             }
@@ -362,7 +395,7 @@ impl ContainerList {
 
     pub fn insert_back_full(&mut self, mut container: Container) -> WmResult<ContainerId> {
         let new_id = self.new_id();
-        container.id = new_id;
+        container.container_id = new_id;
         self.containers.push_back(container);
         Ok(new_id)
     }
