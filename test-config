@@ -22,7 +22,10 @@ keybind "<Alt>p" focus "up"
 keybind "<Alt>n" focus "down"
 keybind "<Alt>p" focus "left"
 keybind "<Alt>n" focus "right"
-keybind "<Alt><k>" kill
+keybind "<Alt>k" kill
 keybind "<Alt>i" execute "firefox-nightly"
+keybind "<Alt>h" change_layout "TilingEqualHorizontal"
+keybind "<Alt>v" change_layout "TilingEqualVertical"
+keybind "<Alt>f" cycle_layout
 option "border_color" "#00ff00"
 hook "startup" "notify-send 'hello world'"

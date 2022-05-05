@@ -19,6 +19,7 @@ use crate::{
     wm::focus_stack::FocusStack,
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
+    wm::layouts::LayoutMask,
     wm::workspace::Workspaces,
     wm::workspace::{Workspace, WorkspaceId},
 };
@@ -136,7 +137,7 @@ impl State {
     /// workspace, otherwise don't return anything.
     fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
         for workspace in &self.workspaces {
-            if workspace.contains_wid(wid) {
+            if workspace.contains_window(wid) {
                 return Some(workspace);
             }
         }
@@ -148,7 +149,7 @@ impl State {
     /// workspace, otherwise don't return anything.
     fn workspace_for_window_mut(&mut self, wid: u32) -> Option<&mut Workspace> {
         for workspace in self.workspaces.iter_mut() {
-            if workspace.contains_wid(wid) {
+            if workspace.contains_window(wid) {
                 return Some(workspace);
             }
         }
@@ -198,7 +199,8 @@ impl State {
     /// Config structure.
     pub fn init_workspaces(&mut self) {
         for i in 1..11 {
-            self.workspaces.push(Workspace::new(format!("{i}"), i));
+            self.workspaces
+                .push(Workspace::new(format!("{i}"), i, LayoutMask::ALL));
         }
 
         self.focused_workspace = Some(self.workspaces[0].id);
@@ -424,6 +426,8 @@ impl State {
             Action::Move(workspace) => self.handle_action_move(workspace as u32)?,
             Action::Execute(command) => self.handle_action_execute(command)?,
             Action::Focus(direction) => self.handle_action_focus(direction)?,
+            Action::ChangeLayout(layout) => self.handle_action_change_layout(layout)?,
+            Action::CycleLayout => self.handle_action_cycle_layout()?,
         }
 
         Ok(())
@@ -564,6 +568,28 @@ impl State {
         self.update_windows(focused_workspace_id)?;
         self.update_windows(workspace_id)?;
 
+        Ok(())
+    }
+
+    fn handle_action_change_layout(&mut self, layout: String) -> WmResult {
+        let root_geometry = self.root_geometry()?;
+        let workspace = self.get_focused_workspace_mut()?;
+        let id = workspace.id;
+
+        workspace.change_layout(layout)?;
+        workspace.apply_layout(root_geometry)?;
+        self.update_windows(id)?;
+
+        Ok(())
+    }
+    fn handle_action_cycle_layout(&mut self) -> WmResult {
+        let root_geometry = self.root_geometry()?;
+        let workspace = self.get_focused_workspace_mut()?;
+        let id = workspace.id;
+
+        workspace.cycle_layout()?;
+        workspace.apply_layout(root_geometry)?;
+        self.update_windows(id)?;
         Ok(())
     }
 }

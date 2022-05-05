@@ -38,6 +38,10 @@ pub enum Action {
     Move(usize),
     /// Shift foucs in a direction
     Focus(Direction),
+    /// Apply a different layout to the currently focused workspace
+    ChangeLayout(String),
+    /// Cycle layouts for the currently focused workspace
+    CycleLayout,
 }
 
 impl Action {
@@ -116,6 +120,21 @@ impl Action {
                         }
                     }
                 }
+                "change_layout" => {
+                    let rest = &parts[1..];
+                    if rest.is_empty() {
+                        return Err(format!("action parsing error: Action takes one argument, but zero were supplied {s}").into());
+                    } else if rest.len() > 1 {
+                        return Err(format!(
+                            "action parsing error: Action takes exactly one argument {s}"
+                        )
+                        .into());
+                    } else {
+                        let layout = rest[0];
+                        return Ok(Action::ChangeLayout(layout.into()));
+                    }
+                }
+                "cycle_layout" => Action::CycleLayout,
                 a => return Err(format!("action parsing error: Unknown action {a}!").into()),
             };
 

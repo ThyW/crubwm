@@ -110,8 +110,12 @@ impl Wm {
                 self.state.handle_enter_event(e.event)?;
             }
             Event::LeaveNotify(_) => {}
-            Event::FocusIn(_) => {}
-            Event::FocusOut(_) => {}
+            Event::ButtonPress(_e) => {
+                // self.state.handle_button_press(e)?;
+            }
+            Event::ButtonRelease(_e) => {
+                // self.state.handle_button_press(e)?;
+            }
             Event::ClientMessage(e) => {
                 #[cfg(debug_assertions)]
                 println!("client message: {}", e.window);

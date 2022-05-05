@@ -371,8 +371,10 @@ impl ContainerList {
         if let Some(mut index) = self.inner_find(id.into()) {
             if index == self.containers.len() - 1 {
                 index = 0;
+            } else {
+                index += 1
             }
-            if let Some(cont) = self.containers.get(index + 1) {
+            if let Some(cont) = self.containers.get(index) {
                 return Ok(cont);
             }
         }
@@ -384,8 +386,10 @@ impl ContainerList {
         if let Some(mut index) = self.inner_find(id.into()) {
             if index == 0 {
                 index = self.containers.len() - 1;
+            } else {
+                index -= 1
             }
-            if let Some(cont) = self.containers.get(index - 1) {
+            if let Some(cont) = self.containers.get(index) {
                 return Ok(cont);
             }
         }

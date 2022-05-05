@@ -7,22 +7,60 @@ use super::container::{Client, Container, ContainerId, ContainerList};
 pub struct Workspace {
     pub containers: ContainerList,
     layout: LayoutType,
+    allowed_layouts_mask: u64,
     pub name: String,
     pub id: WorkspaceId,
 }
 
 impl Workspace {
-    pub fn new(name: String, id: WorkspaceId) -> Self {
+    pub fn new(name: String, id: WorkspaceId, allowed_layouts_mask: u64) -> Self {
         Self {
             containers: ContainerList::new(id),
             layout: LayoutType::default(),
+            allowed_layouts_mask,
             name,
             id,
         }
     }
 
+    pub fn change_layout(&mut self, layout_string: String) -> WmResult {
+        self.layout = LayoutType::try_from(layout_string.as_str())?;
+
+        Ok(())
+    }
+
+    pub fn cycle_layout(&mut self) -> WmResult {
+        if self.allowed_layouts_mask == 0 {
+            return Err("workspace error: no layouts are available for this workspace.".into())
+        }
+        let n = self.layout as u64;
+        let mut active_layotus = Vec::new();
+
+        for ii in 0..64 {
+            if self.allowed_layouts_mask & 1 << ii != 0 {
+                active_layotus.push( 1 << ii)
+            }
+        }
+
+        for (index, layout) in active_layotus.iter().enumerate() {
+            if *layout == n {
+                if let Some(next) = active_layotus.get(index + 1) {
+                    self.layout = LayoutType::try_from(*next)?;
+                    return Ok(())
+                } else if active_layotus.len() > 1 {
+                    self.layout = LayoutType::try_from(active_layotus[0])?;
+                    return Ok(())
+                } else {
+                    return Ok(())
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Contains a client with the given window id?
-    pub fn contains_wid(&self, wid: u32) -> bool {
+    pub fn contains_window(&self, wid: u32) -> bool {
         self.containers.id_for_window(wid).is_ok()
     }
 
