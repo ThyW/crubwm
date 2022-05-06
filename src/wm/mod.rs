@@ -65,6 +65,8 @@ impl Wm {
         self.state.become_wm()?;
         // notify the window manager of the keybinds
         self.state.init_keyman(self.config.keybinds.clone())?;
+        // run startup hooks
+        self.config.start_hooks.run()?;
 
         // run the event loop, don't stop on errors, just report them and keep going.
         loop {

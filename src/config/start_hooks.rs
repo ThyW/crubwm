@@ -44,4 +44,14 @@ impl StartHooks {
 
         Ok(())
     }
+
+    pub fn run(&self) -> WmResult {
+        for hook in &self.0 {
+            let _ = std::process::Command::new("bash")
+                .arg("-c")
+                .args(hook.hook_args.as_slice())
+                .spawn()?;
+        }
+        Ok(())
+    }
 }

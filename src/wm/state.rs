@@ -24,10 +24,10 @@ use crate::{
     wm::workspace::{Workspace, WorkspaceId},
 };
 
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct State {
-    connection: RustConnection,
+    connection: Rc<RustConnection>,
     dpy: *mut Display,
     screen_index: usize,
     workspaces: Workspaces,
@@ -79,7 +79,7 @@ impl State {
         let atoms = AtomManager::init_atoms(&connection)?;
 
         Ok(Self {
-            connection,
+            connection: Rc::new(connection),
             dpy: display,
             screen_index,
             workspaces: Vec::new(),
@@ -169,10 +169,11 @@ impl State {
     }
 
     /// Search for and return a reference to a workspace with the given workspace id.
-    fn workspace_with_id_mut<I: Into<WorkspaceId> + Copy>(
+    fn workspace_with_id_mut<I: Into<WorkspaceId>>(
         &mut self,
         id: I,
     ) -> Option<&mut Workspace> {
+        let id = id.into();
         for workspace in &mut self.workspaces {
             if workspace.id == id.into() {
                 return Some(workspace);
@@ -188,8 +189,8 @@ impl State {
     }
 
     /// Get a referecnce to the underlying X connection.
-    pub fn connection(&self) -> &RustConnection {
-        &self.connection
+    pub fn connection(&self) -> Rc<RustConnection> {
+        self.connection.clone()
     }
 
     // TODO: names and ids should be loaded from config.
@@ -231,15 +232,16 @@ impl State {
     /// Become a window manager, take control of all open windows on the X server.
     pub fn become_wm(&mut self) -> WmResult {
         // get all the subwindows of the root window
+        let connection = self.connection();
         let root_window = self.root_window();
-        let query_tree_cookie = self.connection().query_tree(root_window)?;
+        let query_tree_cookie = connection.query_tree(root_window)?;
         let query_tree_reply = query_tree_cookie.reply()?;
 
         let mut windows_with_geometries: Vec<(u32, Geometry)> = Vec::new();
         let mut geom_cookies = Vec::new();
 
         for window_id in query_tree_reply.children {
-            geom_cookies.push((window_id, self.connection().get_geometry(window_id)?));
+            geom_cookies.push((window_id, connection.get_geometry(window_id)?));
         }
 
         for (id, cookie) in geom_cookies {
@@ -250,23 +252,9 @@ impl State {
         self.manage_windows(windows_with_geometries)
     }
 
-    /// Update window sizes in a given workspace.
-    pub fn update_windows(&self, wsid: WorkspaceId) -> WmResult {
-        let ws = self.workspace_with_id(wsid);
-        if let Some(w) = ws {
-            for win in w.iter_containers()? {
-                if let Some(wid) = win.data().window_id() {
-                    self.connection()
-                        .configure_window(wid, &win.data().geometry().into())?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     /// Let a window be managed by the window manager.
     pub fn manage_window(&mut self, window: u32) -> WmResult {
+        let connection = self.connection();
         let geometry = self.connection().get_geometry(window)?.reply()?;
         let root_window_geometry = self.root_geometry()?;
         let new_client_id = self.new_client_id();
@@ -275,11 +263,6 @@ impl State {
             Client::new_without_process_id(window, geometry, new_client_id),
             CT_MASK_TILING,
         );
-        self.get_focused_workspace_mut()?
-            .apply_layout(root_window_geometry)?;
-        self.connection()
-            .reparent_window(window, self.root_window(), 0, 0)?;
-
         let old_event_mask = self
             .connection()
             .get_window_attributes(window)?
@@ -287,14 +270,15 @@ impl State {
             .your_event_mask;
         let cw_attributes = ChangeWindowAttributesAux::new()
             .event_mask(old_event_mask | EventMask::ENTER_WINDOW | EventMask::FOCUS_CHANGE);
-
         self.connection()
             .change_window_attributes(window, &cw_attributes)?;
 
-        let workspace_id = self.get_focused_workspace()?.id;
-
-        self.update_windows(workspace_id)?;
+        self.connection()
+            .reparent_window(window, self.root_window(), 0, 0)?;
         self.connection().map_window(window)?;
+        self.get_focused_workspace_mut()?
+            .apply_layout(root_window_geometry, connection)?;
+
         self.connection()
             .set_input_focus(InputFocus::NONE, window, CURRENT_TIME)?;
         self.client_focus.set_focused_client(window);
@@ -306,6 +290,7 @@ impl State {
     ///
     /// For performance sake, this method does not call `manage_window` internally.
     pub fn manage_windows(&mut self, windows_and_geometries: Vec<(u32, Geometry)>) -> WmResult {
+        let connection = self.connection();
         let root_window_geometry = self.root_geometry()?;
         let new_client_ids = (0usize..windows_and_geometries.len())
             .map(|_| self.new_client_id())
@@ -324,11 +309,7 @@ impl State {
                 .collect(),
         );
         self.get_focused_workspace_mut()?
-            .apply_layout(root_window_geometry)?;
-
-        let workspace_id = self.get_focused_workspace()?.id;
-
-        self.update_windows(workspace_id)?;
+            .apply_layout(root_window_geometry, connection)?;
 
         for (window, _) in windows_and_geometries {
             self.connection().map_window(window)?;
@@ -343,18 +324,16 @@ impl State {
     /// rest of the windows in the workspace.
     pub fn unmanage_window(&mut self, window: u32) -> WmResult {
         let root_geometry = self.root_geometry()?;
+        let connection = self.connection();
 
         let workspace_option = self.workspace_for_window_mut(window);
-        let mut id = 0;
 
         if let Some(workspace) = workspace_option {
             workspace.remove_window(window)?;
-            workspace.apply_layout(root_geometry)?;
-            id = workspace.id;
+            workspace.apply_layout(root_geometry, connection)?;
         }
 
         // give all windows their correct geometries
-        self.update_windows(id)?;
 
         // set input focus to previously focused client
         if let Some(previous_window_id) = self.client_focus.previously_focused_client() {
@@ -435,8 +414,29 @@ impl State {
 
     fn handle_action_execute(&mut self, command: String) -> WmResult {
         // TODO: get rid of this on release
-        let process = std::process::Command::new(command.clone())
+        #[cfg(debug_assertions)]
+        let process = std::process::Command::new("bash")
             .env("DISPLAY", ":1")
+            .arg("-c")
+            .args(
+                command
+                    .split(" ")
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+            )
+            .spawn()?;
+
+        #[allow(dead_code)]
+        #[cfg(not(debug_assertions))]
+        #[cfg(debug_assertions)]
+        let process = std::process::Command::new("bash")
+            .arg("-c")
+            .args(
+                command
+                    .split(" ")
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+            )
             .spawn()?;
 
         #[cfg(debug_assertions)]
@@ -533,8 +533,6 @@ impl State {
             }
         }
 
-        self.update_windows(workspace_id)?;
-
         for container in workspace.iter_containers()? {
             if let Some(window) = container.data().window_id() {
                 self.connection().map_window(window)?;
@@ -549,6 +547,7 @@ impl State {
     fn handle_action_move(&mut self, workspace_id: WorkspaceId) -> WmResult {
         // get currently focused client id, retrieve it from its workspace, find the other
         // workspace and move the client to that second workspace
+        let connection = self.connection();
         let focused_client = self
             .client_focus
             .focused_client()
@@ -557,39 +556,33 @@ impl State {
         self.connection().unmap_subwindows(focused_client)?;
         self.connection().unmap_window(focused_client)?;
         let focused_workspace = self.get_focused_workspace_mut()?;
-        let focused_workspace_id = focused_workspace.id;
         let container = focused_workspace.remove_and_return_window(focused_client)?;
-        focused_workspace.apply_layout(root_geometry)?;
+        focused_workspace.apply_layout(root_geometry, connection.clone())?;
         if let Some(other_workspace) = self.workspace_with_id_mut(workspace_id) {
             other_workspace.insert_container(container)?;
-            other_workspace.apply_layout(root_geometry)?;
+            other_workspace.apply_layout(root_geometry, connection)?;
         }
-
-        self.update_windows(focused_workspace_id)?;
-        self.update_windows(workspace_id)?;
 
         Ok(())
     }
 
     fn handle_action_change_layout(&mut self, layout: String) -> WmResult {
+        let connection = self.connection();
         let root_geometry = self.root_geometry()?;
         let workspace = self.get_focused_workspace_mut()?;
-        let id = workspace.id;
 
         workspace.change_layout(layout)?;
-        workspace.apply_layout(root_geometry)?;
-        self.update_windows(id)?;
+        workspace.apply_layout(root_geometry, connection)?;
 
         Ok(())
     }
     fn handle_action_cycle_layout(&mut self) -> WmResult {
+        let connection = self.connection();
         let root_geometry = self.root_geometry()?;
         let workspace = self.get_focused_workspace_mut()?;
-        let id = workspace.id;
 
         workspace.cycle_layout()?;
-        workspace.apply_layout(root_geometry)?;
-        self.update_windows(id)?;
+        workspace.apply_layout(root_geometry, connection)?;
         Ok(())
     }
 }

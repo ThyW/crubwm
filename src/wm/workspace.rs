@@ -1,3 +1,7 @@
+use std::rc::Rc;
+
+use x11rb::rust_connection::RustConnection;
+
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
 use crate::errors::WmResult;
@@ -82,8 +86,8 @@ impl Workspace {
         ret
     }
 
-    pub fn apply_layout(&mut self, screen: Geometry) -> WmResult {
-        self.layout.apply(screen, self.containers.iter_mut())
+    pub fn apply_layout(&mut self, screen: Geometry, connection: Rc<RustConnection>) -> WmResult {
+        self.layout.apply(screen, self.containers.iter_mut(), connection)
     }
 
     pub fn remove_window(&mut self, wid: u32) -> WmResult {

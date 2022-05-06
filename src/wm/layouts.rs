@@ -6,6 +6,9 @@ use crate::{
     },
 };
 
+use std::rc::Rc;
+use x11rb::{protocol::xproto::ConnectionExt, rust_connection::RustConnection};
+
 pub struct LayoutMask;
 
 impl LayoutMask {
@@ -19,6 +22,7 @@ pub(crate) trait Layout<'a> {
         &self,
         screen: G,
         cs: std::collections::vec_deque::IterMut<Container>,
+        connection: Rc<RustConnection>,
     ) -> WmResult;
 }
 
@@ -67,6 +71,7 @@ impl<'a> Layout<'a> for LayoutType {
         &self,
         screen: G,
         cs: std::collections::vec_deque::IterMut<Container>,
+        connection: Rc<RustConnection>,
     ) -> WmResult {
         match &self {
             Self::TilingEqualHorizontal => {
@@ -91,11 +96,12 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.x = width as i16 * ii as i16;
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
-                            println!("geom: {}", c.geometry);
+                            connection.configure_window(c.window_id(), &c.geometry().into())?;
                         }
                         ContainerType::Floating(_) => (),
                     };
                 }
+
                 Ok(())
             }
             Self::TilingEqualVertical => {
@@ -122,6 +128,7 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.y = height as i16 * ii as i16;
                             c.geometry.width = screen.width;
                             c.geometry.height = height;
+                            connection.configure_window(c.window_id(), &c.geometry().into())?;
                         }
                     }
                 }

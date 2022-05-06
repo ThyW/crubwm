@@ -1,5 +1,5 @@
-keybind "<Alt><l>" execute "alacritty"
-keybind "<Alt><d>" execute "dmenu_run"
+keybind "<Alt>l" execute "alacritty"
+keybind "<Alt>d" execute "dmenu_run"
 keybind "<Alt>1" goto "1"
 keybind "<Alt>2" goto "2"
 keybind "<Alt>3" goto "3"
@@ -29,3 +29,4 @@ keybind "<Alt>v" change_layout "TilingEqualVertical"
 keybind "<Alt>f" cycle_layout
 option "border_color" "#00ff00"
 hook "startup" "notify-send 'hello world'"
+hook "startup" "notify-send 'hello world 2'"
