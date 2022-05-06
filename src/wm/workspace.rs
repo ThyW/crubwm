@@ -35,14 +35,14 @@ impl Workspace {
 
     pub fn cycle_layout(&mut self) -> WmResult {
         if self.allowed_layouts_mask == 0 {
-            return Err("workspace error: no layouts are available for this workspace.".into())
+            return Err("workspace error: no layouts are available for this workspace.".into());
         }
         let n = self.layout as u64;
         let mut active_layotus = Vec::new();
 
         for ii in 0..64 {
             if self.allowed_layouts_mask & 1 << ii != 0 {
-                active_layotus.push( 1 << ii)
+                active_layotus.push(1 << ii)
             }
         }
 
@@ -50,12 +50,12 @@ impl Workspace {
             if *layout == n {
                 if let Some(next) = active_layotus.get(index + 1) {
                     self.layout = LayoutType::try_from(*next)?;
-                    return Ok(())
+                    return Ok(());
                 } else if active_layotus.len() > 1 {
                     self.layout = LayoutType::try_from(active_layotus[0])?;
-                    return Ok(())
+                    return Ok(());
                 } else {
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
@@ -87,7 +87,8 @@ impl Workspace {
     }
 
     pub fn apply_layout(&mut self, screen: Geometry, connection: Rc<RustConnection>) -> WmResult {
-        self.layout.apply(screen, self.containers.iter_mut(), connection)
+        self.layout
+            .apply(screen, self.containers.iter_mut(), connection)
     }
 
     pub fn remove_window(&mut self, wid: u32) -> WmResult {

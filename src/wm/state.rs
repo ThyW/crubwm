@@ -169,10 +169,7 @@ impl State {
     }
 
     /// Search for and return a reference to a workspace with the given workspace id.
-    fn workspace_with_id_mut<I: Into<WorkspaceId>>(
-        &mut self,
-        id: I,
-    ) -> Option<&mut Workspace> {
+    fn workspace_with_id_mut<I: Into<WorkspaceId>>(&mut self, id: I) -> Option<&mut Workspace> {
         let id = id.into();
         for workspace in &mut self.workspaces {
             if workspace.id == id.into() {
@@ -438,6 +435,9 @@ impl State {
                     .collect::<Vec<String>>(),
             )
             .spawn()?;
+
+        #[cfg(not(debug_assertions))]
+        let process = std::process::Command::new(command.clone()).spawn()?;
 
         #[cfg(debug_assertions)]
         println!("command: {command} has child process {}", process.id());
