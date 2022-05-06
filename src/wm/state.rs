@@ -425,7 +425,6 @@ impl State {
 
         #[allow(dead_code)]
         #[cfg(not(debug_assertions))]
-        #[cfg(debug_assertions)]
         let process = std::process::Command::new("bash")
             .arg("-c")
             .args(
@@ -435,9 +434,6 @@ impl State {
                     .collect::<Vec<String>>(),
             )
             .spawn()?;
-
-        #[cfg(not(debug_assertions))]
-        let process = std::process::Command::new(command.clone()).spawn()?;
 
         #[cfg(debug_assertions)]
         println!("command: {command} has child process {}", process.id());
