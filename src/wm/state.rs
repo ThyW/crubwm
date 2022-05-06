@@ -24,10 +24,10 @@ use crate::{
     wm::workspace::{Workspace, WorkspaceId},
 };
 
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct State {
-    connection: RustConnection,
+    connection: Rc<RustConnection>,
     dpy: *mut Display,
     screen_index: usize,
     workspaces: Workspaces,
@@ -79,7 +79,7 @@ impl State {
         let atoms = AtomManager::init_atoms(&connection)?;
 
         Ok(Self {
-            connection,
+            connection: Rc::new(connection),
             dpy: display,
             screen_index,
             workspaces: Vec::new(),
@@ -188,8 +188,8 @@ impl State {
     }
 
     /// Get a referecnce to the underlying X connection.
-    pub fn connection(&self) -> &RustConnection {
-        &self.connection
+    pub fn connection(&self) -> Rc<RustConnection> {
+        self.connection.clone()
     }
 
     // TODO: names and ids should be loaded from config.
@@ -231,15 +231,16 @@ impl State {
     /// Become a window manager, take control of all open windows on the X server.
     pub fn become_wm(&mut self) -> WmResult {
         // get all the subwindows of the root window
+        let connection = self.connection();
         let root_window = self.root_window();
-        let query_tree_cookie = self.connection().query_tree(root_window)?;
+        let query_tree_cookie = connection.query_tree(root_window)?;
         let query_tree_reply = query_tree_cookie.reply()?;
 
         let mut windows_with_geometries: Vec<(u32, Geometry)> = Vec::new();
         let mut geom_cookies = Vec::new();
 
         for window_id in query_tree_reply.children {
-            geom_cookies.push((window_id, self.connection().get_geometry(window_id)?));
+            geom_cookies.push((window_id, connection.get_geometry(window_id)?));
         }
 
         for (id, cookie) in geom_cookies {
@@ -435,9 +436,13 @@ impl State {
 
     fn handle_action_execute(&mut self, command: String) -> WmResult {
         // TODO: get rid of this on release
+        #[cfg(debug_assertions)]
         let process = std::process::Command::new(command.clone())
             .env("DISPLAY", ":1")
             .spawn()?;
+
+        #[cfg(not(debug_assertions))]
+        let process = std::process::Command::new(command.clone()).spawn()?;
 
         #[cfg(debug_assertions)]
         println!("command: {command} has child process {}", process.id());
