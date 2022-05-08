@@ -99,8 +99,6 @@ impl Wm {
                 )
             }
             Event::KeyPress(e) => {
-                #[cfg(debug_assertions)]
-                println!("[DEBUG] key press mask: {}", e.state);
                 self.state.handle_key_press(&e)?;
             }
 
@@ -109,14 +107,18 @@ impl Wm {
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
+                println!("handling enter event: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
             Event::LeaveNotify(_) => {}
-            Event::ButtonPress(_e) => {
-                // self.state.handle_button_press(e)?;
+            Event::MotionNotify(e) => {
+                self.state.handle_motion_notify(&e)?;
             }
-            Event::ButtonRelease(_e) => {
-                // self.state.handle_button_press(e)?;
+            Event::ButtonPress(e) => {
+                self.state.handle_button_press(&e)?;
+            }
+            Event::ButtonRelease(e) => {
+                self.state.handle_button_release(&e)?;
             }
             Event::ClientMessage(e) => {
                 #[cfg(debug_assertions)]

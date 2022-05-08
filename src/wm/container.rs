@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 use std::collections::VecDeque;
 
-use crate::{errors::WmResult, wm::geometry::Geometry};
+use crate::{
+    errors::{Error, WmResult},
+    wm::geometry::Geometry,
+};
 
 pub const CT_MASK_TILING: u8 = 1 << 0;
 pub const CT_MASK_FLOATING: u8 = 1 << 1;
@@ -107,6 +110,7 @@ pub enum ContainerType {
 pub struct Container {
     container_type: ContainerType,
     container_id: ContainerId,
+    last_position: Option<(i32, i32)>,
 }
 
 impl Container {
@@ -123,6 +127,7 @@ impl Container {
         Self {
             container_type,
             container_id: id.into(),
+            last_position: None,
         }
     }
 
@@ -136,6 +141,46 @@ impl Container {
 
     pub fn id(&self) -> &ContainerId {
         &self.container_id
+    }
+
+    pub fn into_layout(&mut self) -> WmResult {
+        self.container_type =
+            self.data_mut().clone().into_layout().ok_or_else(|| {
+                Error::Generic("unable to change container type to InLayout".into())
+            })?;
+
+        Ok(())
+    }
+
+    pub fn into_floating(&mut self) -> WmResult {
+        self.container_type =
+            self.data_mut().clone().into_floating().ok_or_else(|| {
+                Error::Generic("unable to change contdainer type to Floating".into())
+            })?;
+
+        Ok(())
+    }
+
+    pub fn is_floating(&self) -> bool {
+        match self.container_type {
+            ContainerType::Floating(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_tiled(&self) -> bool {
+        match self.container_type {
+            ContainerType::InLayout(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn last_position(&self) -> Option<(i32, i32)> {
+        self.last_position
+    }
+
+    pub fn change_last_position<I: Into<i32>>(&mut self, new_position: (I, I)) {
+        self.last_position = Some((new_position.0.into(), new_position.1.into()));
     }
 }
 
@@ -317,6 +362,13 @@ impl ContainerList {
 
     pub fn iter(&self) -> std::collections::vec_deque::Iter<Container> {
         self.containers.iter()
+    }
+
+    pub fn iter_in_layout_mut(
+        &mut self,
+    ) -> (usize, std::collections::vec_deque::IterMut<Container>) {
+        let len = self.containers.iter().filter(|x| x.is_tiled()).count();
+        (len, self.containers.iter_mut())
     }
 
     pub fn find_mut<C: Into<ContainerId>>(&mut self, container_id: C) -> WmResult<&mut Container> {

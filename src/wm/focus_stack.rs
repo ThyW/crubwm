@@ -3,9 +3,17 @@ use std::collections::VecDeque;
 #[derive(Debug, Clone, Default)]
 pub struct FocusStack {
     data: VecDeque<u32>,
+    root: u32,
 }
 
 impl FocusStack {
+    pub fn new(root: u32) -> Self {
+        Self {
+            data: Default::default(),
+            root,
+        }
+    }
+
     pub fn focused_client(&self) -> Option<u32> {
         if let Some(first) = self.data.front() {
             return Some(*first);
@@ -23,6 +31,9 @@ impl FocusStack {
     }
 
     pub fn set_focused_client(&mut self, c: u32) {
+        if c == self.root {
+            return;
+        }
         if !self.data.contains(&c) {
             self.data.push_front(c);
         } else {

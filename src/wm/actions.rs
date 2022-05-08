@@ -42,6 +42,8 @@ pub enum Action {
     ChangeLayout(String),
     /// Cycle layouts for the currently focused workspace
     CycleLayout,
+    /// Toggle the currently focused window in and out of floaing
+    ToggleFloat,
 }
 
 impl Action {
@@ -135,6 +137,7 @@ impl Action {
                     }
                 }
                 "cycle_layout" => Action::CycleLayout,
+                "toggle_float" => Action::ToggleFloat,
                 a => return Err(format!("action parsing error: Unknown action {a}!").into()),
             };
 

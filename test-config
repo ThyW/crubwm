@@ -27,6 +27,7 @@ keybind "<Alt>i" execute "firefox-nightly"
 keybind "<Alt>h" change_layout "TilingEqualHorizontal"
 keybind "<Alt>v" change_layout "TilingEqualVertical"
 keybind "<Alt>f" cycle_layout
+keybind "<Alt><space>" toggle_float
 option "border_color" "#00ff00"
 hook "startup" "notify-send 'hello world'"
 hook "startup" "notify-send 'hello world 2'"

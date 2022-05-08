@@ -72,6 +72,10 @@ impl Workspace {
         let id = self.containers.id_for_window(wid)?;
         self.find(id)
     }
+    pub fn find_by_window_id_mut(&mut self, wid: u32) -> WmResult<&mut Container> {
+        let id = self.containers.id_for_window(wid)?;
+        self.find_mut(id)
+    }
 
     pub fn insert_client(&mut self, c: Client, t: u8) -> ContainerId {
         self.containers.insert_back(c, t)
@@ -88,7 +92,7 @@ impl Workspace {
 
     pub fn apply_layout(&mut self, screen: Geometry, connection: Rc<RustConnection>) -> WmResult {
         self.layout
-            .apply(screen, self.containers.iter_mut(), connection)
+            .apply(screen, self.containers.iter_in_layout_mut(), connection)
     }
 
     pub fn remove_window(&mut self, wid: u32) -> WmResult {
@@ -116,8 +120,12 @@ impl Workspace {
         self.containers.previous_for_id(c)
     }
 
-    pub fn find<I: Into<ContainerId> + Copy>(&self, id: I) -> WmResult<&Container> {
-        self.containers.find(id.into())
+    pub fn find<I: Into<ContainerId>>(&self, id: I) -> WmResult<&Container> {
+        self.containers.find(id)
+    }
+
+    pub fn find_mut<I: Into<ContainerId>>(&mut self, id: I) -> WmResult<&mut Container> {
+        self.containers.find_mut(id)
     }
 
     pub fn iter_containers(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {

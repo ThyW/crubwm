@@ -3,11 +3,11 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::xproto::{
-        AtomEnum, ChangeWindowAttributesAux, ConnectionExt, EventMask, GrabMode, InputFocus,
-        KeyPressEvent, KeyReleaseEvent, Screen,
+        AtomEnum, ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
+        EventMask, GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
     },
     rust_connection::RustConnection,
-    CURRENT_TIME,
+    CURRENT_TIME, NONE,
 };
 
 use crate::{
@@ -36,6 +36,8 @@ pub struct State {
     key_manager: KeyManager,
     last_client_id: ClientId,
     atoms: HashMap<String, u32>,
+    is_dragging: bool,
+    is_resizing: bool,
 }
 
 const ANY_KEY_MASK: u8 = 0;
@@ -64,8 +66,6 @@ impl State {
         let change = ChangeWindowAttributesAux::default().event_mask(
             EventMask::SUBSTRUCTURE_NOTIFY
                 | EventMask::SUBSTRUCTURE_REDIRECT
-                | EventMask::BUTTON_PRESS
-                | EventMask::POINTER_MOTION
                 | EventMask::ENTER_WINDOW
                 | EventMask::LEAVE_WINDOW
                 | EventMask::STRUCTURE_NOTIFY
@@ -73,8 +73,9 @@ impl State {
                 | EventMask::FOCUS_CHANGE,
         );
 
-        connection
-            .change_window_attributes(connection.setup().roots[screen_index].root, &change)?;
+        let root_window = connection.setup().roots[screen_index as usize].root;
+        connection.change_window_attributes(root_window, &change)?;
+        connection.flush()?;
 
         let atoms = AtomManager::init_atoms(&connection)?;
 
@@ -84,10 +85,12 @@ impl State {
             screen_index,
             workspaces: Vec::new(),
             focused_workspace: None,
-            client_focus: FocusStack::default(),
+            client_focus: FocusStack::new(root_window),
             key_manager: KeyManager::default(),
             last_client_id: 0,
             atoms,
+            is_dragging: false,
+            is_resizing: false,
         })
     }
 
@@ -270,6 +273,33 @@ impl State {
         self.connection()
             .change_window_attributes(window, &cw_attributes)?;
 
+        let mask: u32 =
+            (EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION).into();
+
+        self.connection().grab_button(
+            true,
+            window,
+            mask as u16,
+            GrabMode::ASYNC,
+            GrabMode::ASYNC,
+            self.root_window(),
+            NONE,
+            ButtonIndex::M1,
+            8u16,
+        )?;
+
+        self.connection().grab_button(
+            true,
+            window,
+            mask as u16,
+            GrabMode::ASYNC,
+            GrabMode::ASYNC,
+            self.root_window(),
+            NONE,
+            ButtonIndex::M3,
+            8u16,
+        )?;
+
         self.connection()
             .reparent_window(window, self.root_window(), 0, 0)?;
         self.connection().map_window(window)?;
@@ -360,6 +390,8 @@ impl State {
 
         let _ = self.focused_workspace.insert(id);
 
+        /* let configure_window = ConfigureWindowAux::new().stack_mode(Some(StackMode::TOP_IF));
+        self.connection().configure_window(window, &configure_window)?; */
         self.connection().set_input_focus(
             x11rb::protocol::xproto::InputFocus::NONE,
             window,
@@ -404,6 +436,7 @@ impl State {
             Action::Focus(direction) => self.handle_action_focus(direction)?,
             Action::ChangeLayout(layout) => self.handle_action_change_layout(layout)?,
             Action::CycleLayout => self.handle_action_cycle_layout()?,
+            Action::ToggleFloat => self.handle_action_toggle_float()?,
         }
 
         Ok(())
@@ -579,6 +612,179 @@ impl State {
 
         workspace.cycle_layout()?;
         workspace.apply_layout(root_geometry, connection)?;
+        Ok(())
+    }
+
+    fn handle_action_toggle_float(&mut self) -> WmResult {
+        let connection = self.connection();
+        let root_geometry = self.root_geometry()?;
+        let focused_client_id = match self.client_focus.focused_client() {
+            Some(c) => c,
+            None => return Err("clinet focus error: there is no client currently in focus.".into()),
+        };
+        let workspace = self.get_focused_workspace_mut()?;
+
+        let container = workspace.find_by_window_id_mut(focused_client_id)?;
+
+        if container.is_tiled() {
+            container.into_floating()?
+        } else {
+            container.into_layout()?
+        }
+
+        let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
+        connection
+            .clone()
+            .configure_window(focused_client_id, &window_config)?;
+        workspace.apply_layout(root_geometry, connection.clone())?;
+        connection.clone().flush()?;
+
+        Ok(())
+    }
+
+    pub fn handle_button_press(
+        &mut self,
+        ev: &x11rb::protocol::xproto::ButtonPressEvent,
+    ) -> WmResult {
+        let workspace = self.workspace_for_window_mut(ev.event).ok_or_else(|| {
+            Error::Generic(format!(
+                "workspace error: unable to find workspace for window id {}",
+                ev.event
+            ))
+        })?;
+
+        let container = workspace.find_by_window_id_mut(ev.event)?;
+
+        if !container.is_floating() {
+            return Ok(());
+        } else {
+            container.change_last_position((ev.root_x, ev.root_y));
+            match ev.detail {
+                1 => self.is_dragging = true,
+                3 => self.is_resizing = true,
+                _ => (),
+            };
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_button_release(
+        &mut self,
+        ev: &x11rb::protocol::xproto::ButtonReleaseEvent,
+    ) -> WmResult {
+        let connection = self.connection();
+        let workspace = self.workspace_for_window_mut(ev.event).ok_or_else(|| {
+            Error::Generic(format!(
+                "workspace error: unable to find workspace for window id {}",
+                ev.event
+            ))
+        })?;
+
+        let container = workspace.find_by_window_id_mut(ev.event)?;
+
+        if !container.is_floating() {
+            return Ok(());
+        } else {
+            match ev.detail {
+                1 => {
+                    let last_event_position = container.last_position().unwrap();
+                    let diff = (
+                        last_event_position.0 as i16 - ev.root_x,
+                        last_event_position.1 as i16 - ev.root_y,
+                    );
+                    match container.data_mut() {
+                        crate::wm::container::ContainerType::Floating(c) => {
+                            c.geometry.x -= diff.0;
+                            c.geometry.y -= diff.1;
+
+                            connection.configure_window(c.window_id(), &c.geometry().into())?;
+                        }
+                        _ => (),
+                    }
+                    self.is_dragging = false
+                }
+                3 => {
+                    let last_event_position = container.last_position().unwrap();
+                    let diff = (
+                        last_event_position.0 as i16 - ev.root_x,
+                        last_event_position.1 as i16 - ev.root_y,
+                    );
+                    let geom = container.data().geometry();
+                    let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
+                    match container.data_mut() {
+                        crate::wm::container::ContainerType::Floating(c) => {
+                            c.geometry.width = w as u16;
+                            c.geometry.height = h as u16;
+                            connection.configure_window(c.window_id(), &c.geometry.into())?;
+                        }
+                        _ => (),
+                    }
+                    self.is_resizing = false
+                }
+
+                _ => (),
+            }
+        }
+        Ok(())
+    }
+
+    pub fn handle_motion_notify(
+        &mut self,
+        ev: &x11rb::protocol::xproto::MotionNotifyEvent,
+    ) -> WmResult {
+        let connection = self.connection();
+        let dragging = self.is_dragging;
+        let resizing = self.is_resizing;
+        let workspace = self.workspace_for_window_mut(ev.event).ok_or_else(|| {
+            Error::Generic(format!(
+                "workspace error: unable to find workspace for window id {}",
+                ev.event
+            ))
+        })?;
+
+        let container = workspace.find_by_window_id_mut(ev.event)?;
+
+        if !container.is_floating() {
+            return Ok(());
+        } else {
+            if dragging {
+                let last_event_position = container.last_position().unwrap();
+                let diff = (
+                    last_event_position.0 as i16 - ev.root_x,
+                    last_event_position.1 as i16 - ev.root_y,
+                );
+                match container.data_mut() {
+                    crate::wm::container::ContainerType::Floating(c) => {
+                        c.geometry.x -= diff.0;
+                        c.geometry.y -= diff.1;
+
+                        connection.configure_window(c.window_id(), &c.geometry().into())?;
+                    }
+                    _ => (),
+                }
+                container.change_last_position((ev.root_x, ev.root_y))
+            } else if resizing {
+                let last_event_position = container.last_position().unwrap();
+                let diff = (
+                    last_event_position.0 as i16 - ev.root_x,
+                    last_event_position.1 as i16 - ev.root_y,
+                );
+                // TODO: read WM_SIZE_HINTS for min/max width and height
+                let geom = container.data().geometry();
+                let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
+                match container.data_mut() {
+                    crate::wm::container::ContainerType::Floating(c) => {
+                        c.geometry.width = w as u16;
+                        c.geometry.height = h as u16;
+                        connection.configure_window(c.window_id(), &c.geometry.into())?;
+                    }
+                    _ => (),
+                }
+                container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
+            }
+        }
+
         Ok(())
     }
 }
