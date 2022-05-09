@@ -42,6 +42,8 @@ pub struct State {
 
 const ANY_KEY_MASK: u8 = 0;
 const ANY_MOD_KEY_MASK: u16 = 32768;
+const MIN_WIDTH: u16 = 160;
+const MIN_HEIGHT: u16 = 90;
 
 impl State {
     /// Connect to the X server and create WM state.
@@ -119,17 +121,17 @@ impl State {
     }
 
     /// Get the information about the current root of our display.
-    pub fn root_screen(&self) -> &Screen {
+    fn root_screen(&self) -> &Screen {
         &self.connection.setup().roots[self.screen_index]
     }
 
     /// Return the X window id of the root window
-    pub fn root_window(&self) -> u32 {
+    fn root_window(&self) -> u32 {
         self.root_screen().root
     }
 
     /// Get the geometry of the root window.
-    pub fn root_geometry(&self) -> WmResult<Geometry> {
+    fn root_geometry(&self) -> WmResult<Geometry> {
         let geometry_cookie = self.connection.get_geometry(self.root_window())?;
         let geometry = geometry_cookie.reply()?.into();
 
@@ -146,6 +148,12 @@ impl State {
         }
 
         None
+    }
+
+    // Get a pointer to Xlib display structure. This method is used for handling keyboard
+    // events(KeyPress and KeyRelease events).
+    fn display(&mut self) -> *mut Display {
+        self.dpy
     }
 
     /// Go through all workspaces, if they contain a given window: return a mutable reference to the
@@ -183,6 +191,7 @@ impl State {
         None
     }
 
+    /// Generate a new client identifier.
     fn new_client_id(&mut self) -> ClientId {
         self.last_client_id += 1;
         self.last_client_id
@@ -231,7 +240,6 @@ impl State {
 
     /// Become a window manager, take control of all open windows on the X server.
     pub fn become_wm(&mut self) -> WmResult {
-        // get all the subwindows of the root window
         let connection = self.connection();
         let root_window = self.root_window();
         let query_tree_cookie = connection.query_tree(root_window)?;
@@ -360,8 +368,6 @@ impl State {
             workspace.apply_layout(root_geometry, connection)?;
         }
 
-        // give all windows their correct geometries
-
         // set input focus to previously focused client
         if let Some(previous_window_id) = self.client_focus.previously_focused_client() {
             self.connection().set_input_focus(
@@ -419,229 +425,12 @@ impl State {
         Ok(())
     }
 
-    // Get a pointer to Xlib display structure. This method is used for handling keyboard
-    // events(KeyPress and KeyRelease events).
-    fn display(&mut self) -> *mut Display {
-        self.dpy
-    }
-
-    /// Handle the execution of a given action.
-    pub fn do_action(&mut self, action: Action) -> WmResult {
-        match action {
-            Action::Noop => {}
-            Action::Kill => self.handle_action_kill()?,
-            Action::Goto(workspace) => self.handle_action_goto(workspace as u32)?,
-            Action::Move(workspace) => self.handle_action_move(workspace as u32)?,
-            Action::Execute(command) => self.handle_action_execute(command)?,
-            Action::Focus(direction) => self.handle_action_focus(direction)?,
-            Action::ChangeLayout(layout) => self.handle_action_change_layout(layout)?,
-            Action::CycleLayout => self.handle_action_cycle_layout()?,
-            Action::ToggleFloat => self.handle_action_toggle_float()?,
-        }
-
-        Ok(())
-    }
-
-    fn handle_action_execute(&mut self, command: String) -> WmResult {
-        // TODO: get rid of this on release
-        #[cfg(debug_assertions)]
-        let process = std::process::Command::new("bash")
-            .env("DISPLAY", ":1")
-            .arg("-c")
-            .args(
-                command
-                    .split(" ")
-                    .map(|m| m.to_string())
-                    .collect::<Vec<String>>(),
-            )
-            .spawn()?;
-
-        #[allow(dead_code)]
-        #[cfg(not(debug_assertions))]
-        let process = std::process::Command::new("bash")
-            .arg("-c")
-            .args(
-                command
-                    .split(" ")
-                    .map(|m| m.to_string())
-                    .collect::<Vec<String>>(),
-            )
-            .spawn()?;
-
-        #[cfg(debug_assertions)]
-        println!("command: {command} has child process {}", process.id());
-
-        Ok(())
-    }
-
-    fn handle_action_kill(&mut self) -> WmResult {
-        if let Some(window) = self.client_focus.focused_client() {
-            if let Some(workspace) = self.workspace_for_window(window) {
-                if let Ok(container) = workspace.find_by_window_id(window) {
-                    if let Some(process_id) = container.data().process_id() {
-                        if process_id != 0 {
-                            let pid = format!("{process_id}");
-                            std::process::Command::new("kill").arg(pid).spawn()?;
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-
-            let process_id_reply = self
-                .connection()
-                .get_property(
-                    false,
-                    window,
-                    *self.atoms.get("_NET_WM_PID").unwrap(),
-                    AtomEnum::CARDINAL,
-                    0,
-                    1,
-                )?
-                .reply()?;
-
-            if process_id_reply.value_len != 0 && process_id_reply.format == 32 {
-                let process_id = process_id_reply.value32().unwrap().collect::<Vec<u32>>()[0];
-                #[cfg(debug_assertions)]
-                println!("killing {process_id}");
-                std::process::Command::new("kill")
-                    .arg(format!("{process_id}"))
-                    .spawn()?;
-                return Ok(());
-            }
-
-            self.connection().destroy_subwindows(window)?;
-            self.connection().destroy_window(window)?;
-        }
-
-        Ok(())
-    }
-
-    fn handle_action_focus(&mut self, direction: Direction) -> WmResult {
-        if let Some(window) = self.client_focus.focused_client() {
-            let workspace = self.get_focused_workspace()?;
-            let container = workspace.find_by_window_id(window)?;
-            let container_id = container.id();
-
-            let container_to_focus_option = match direction {
-                Direction::Right => Some(workspace.next_container(*container_id)),
-                Direction::Left => Some(workspace.previous_container(*container_id)),
-                Direction::Up => Some(workspace.previous_container(*container_id)),
-                Direction::Down => Some(workspace.next_container(*container_id)),
-            };
-
-            if let Some(container_to_focus) = container_to_focus_option {
-                if let Some(window_to_focus) = container_to_focus?.data().window_id() {
-                    self.connection().set_input_focus(
-                        InputFocus::NONE,
-                        window_to_focus,
-                        x11rb::CURRENT_TIME,
-                    )?;
-                    self.client_focus.set_focused_client(window_to_focus);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn handle_action_goto(&mut self, workspace_id: WorkspaceId) -> WmResult {
-        let workspace = self.workspace_with_id(workspace_id).ok_or_else(|| {
-            crate::errors::Error::Generic(format!(
-                "workspace error: unable to find workspace with id {workspace_id}"
-            ))
-        })?;
-        if let Some(current_workspace_id) = self.focused_workspace {
-            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
-                for each in current_workspace.iter_containers()? {
-                    if let Some(wid) = each.data().window_id() {
-                        self.connection().unmap_subwindows(wid)?;
-                        self.connection().unmap_window(wid)?;
-                    }
-                }
-            }
-        }
-
-        for container in workspace.iter_containers()? {
-            if let Some(window) = container.data().window_id() {
-                self.connection().map_window(window)?;
-            }
-        }
-
-        self.focused_workspace = Some(workspace_id);
-
-        Ok(())
-    }
-
-    fn handle_action_move(&mut self, workspace_id: WorkspaceId) -> WmResult {
-        // get currently focused client id, retrieve it from its workspace, find the other
-        // workspace and move the client to that second workspace
-        let connection = self.connection();
-        let focused_client = self
-            .client_focus
-            .focused_client()
-            .ok_or_else(|| Error::Generic("move error: no focused client".into()))?;
-        let root_geometry = self.root_geometry()?;
-        self.connection().unmap_subwindows(focused_client)?;
-        self.connection().unmap_window(focused_client)?;
-        let focused_workspace = self.get_focused_workspace_mut()?;
-        let container = focused_workspace.remove_and_return_window(focused_client)?;
-        focused_workspace.apply_layout(root_geometry, connection.clone())?;
-        if let Some(other_workspace) = self.workspace_with_id_mut(workspace_id) {
-            other_workspace.insert_container(container)?;
-            other_workspace.apply_layout(root_geometry, connection)?;
-        }
-
-        Ok(())
-    }
-
-    fn handle_action_change_layout(&mut self, layout: String) -> WmResult {
-        let connection = self.connection();
-        let root_geometry = self.root_geometry()?;
-        let workspace = self.get_focused_workspace_mut()?;
-
-        workspace.change_layout(layout)?;
-        workspace.apply_layout(root_geometry, connection)?;
-
-        Ok(())
-    }
-    fn handle_action_cycle_layout(&mut self) -> WmResult {
-        let connection = self.connection();
-        let root_geometry = self.root_geometry()?;
-        let workspace = self.get_focused_workspace_mut()?;
-
-        workspace.cycle_layout()?;
-        workspace.apply_layout(root_geometry, connection)?;
-        Ok(())
-    }
-
-    fn handle_action_toggle_float(&mut self) -> WmResult {
-        let connection = self.connection();
-        let root_geometry = self.root_geometry()?;
-        let focused_client_id = match self.client_focus.focused_client() {
-            Some(c) => c,
-            None => return Err("clinet focus error: there is no client currently in focus.".into()),
-        };
-        let workspace = self.get_focused_workspace_mut()?;
-
-        let container = workspace.find_by_window_id_mut(focused_client_id)?;
-
-        if container.is_tiled() {
-            container.into_floating()?
-        } else {
-            container.into_layout()?
-        }
-
-        let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
-        connection
-            .clone()
-            .configure_window(focused_client_id, &window_config)?;
-        workspace.apply_layout(root_geometry, connection.clone())?;
-        connection.clone().flush()?;
-
-        Ok(())
-    }
-
+    /// Handle a button press event.
+    ///
+    /// We check which button on the mouse was pressed, if it was the left button(ev.detail = 1), we know that the
+    /// user wants to move this client around, we set the `is_dragging` filed to true. If, on the
+    /// other hand, the right button(ev.detail = 3) was pressed, we know the user wants to resize
+    /// the window and we set the `is_resizing` flag to to true.
     pub fn handle_button_press(
         &mut self,
         ev: &x11rb::protocol::xproto::ButtonPressEvent,
@@ -669,6 +458,12 @@ impl State {
         Ok(())
     }
 
+    /// Handle a button release event.
+    ///
+    /// Very similar to button press, we check the `ev.detail` field of the `ButtonReleaseEvent`,
+    /// and either finish the dragging process, updating the window's position for the final time,
+    /// or we finish the resizing process, updating the window's width and height for the final
+    /// time.
     pub fn handle_button_release(
         &mut self,
         ev: &x11rb::protocol::xproto::ButtonReleaseEvent,
@@ -712,6 +507,10 @@ impl State {
                     );
                     let geom = container.data().geometry();
                     let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
+                    if !(w as u16 >= MIN_WIDTH) || !(h as u16 >= MIN_HEIGHT) {
+                        self.is_resizing = false;
+                        return Ok(());
+                    }
                     match container.data_mut() {
                         crate::wm::container::ContainerType::Floating(c) => {
                             c.geometry.width = w as u16;
@@ -729,6 +528,9 @@ impl State {
         Ok(())
     }
 
+    /// Handle a motion notify event.
+    ///
+    /// After checking which flag is active, we either move or resize the window.
     pub fn handle_motion_notify(
         &mut self,
         ev: &x11rb::protocol::xproto::MotionNotifyEvent,
@@ -770,9 +572,11 @@ impl State {
                     last_event_position.0 as i16 - ev.root_x,
                     last_event_position.1 as i16 - ev.root_y,
                 );
-                // TODO: read WM_SIZE_HINTS for min/max width and height
                 let geom = container.data().geometry();
                 let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
+                if !(w as u16 >= MIN_WIDTH) || !(h as u16 >= MIN_HEIGHT) {
+                    return Ok(());
+                }
                 match container.data_mut() {
                     crate::wm::container::ContainerType::Floating(c) => {
                         c.geometry.width = w as u16;
@@ -784,6 +588,223 @@ impl State {
                 container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
             }
         }
+
+        Ok(())
+    }
+
+    /// Handle the execution of a given action.
+    fn do_action(&mut self, action: Action) -> WmResult {
+        match action {
+            Action::Noop => {}
+            Action::Kill => self.action_kill()?,
+            Action::Goto(workspace) => self.action_goto(workspace as u32)?,
+            Action::Move(workspace) => self.action_move(workspace as u32)?,
+            Action::Execute(command) => self.action_execute(command)?,
+            Action::Focus(direction) => self.action_focus(direction)?,
+            Action::ChangeLayout(layout) => self.action_change_layout(layout)?,
+            Action::CycleLayout => self.action_cycle_layout()?,
+            Action::ToggleFloat => self.action_toggle_float()?,
+        }
+
+        Ok(())
+    }
+
+    fn action_execute(&mut self, command: String) -> WmResult {
+        // TODO: get rid of this on release
+        #[cfg(debug_assertions)]
+        let process = std::process::Command::new("bash")
+            .env("DISPLAY", ":1")
+            .arg("-c")
+            .args(
+                command
+                    .split(" ")
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+            )
+            .spawn()?;
+
+        #[allow(dead_code)]
+        #[cfg(not(debug_assertions))]
+        let process = std::process::Command::new("bash")
+            .arg("-c")
+            .args(
+                command
+                    .split(" ")
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+            )
+            .spawn()?;
+
+        #[cfg(debug_assertions)]
+        println!("command: {command} has child process {}", process.id());
+
+        Ok(())
+    }
+
+    fn action_kill(&mut self) -> WmResult {
+        if let Some(window) = self.client_focus.focused_client() {
+            if let Some(workspace) = self.workspace_for_window(window) {
+                if let Ok(container) = workspace.find_by_window_id(window) {
+                    if let Some(process_id) = container.data().process_id() {
+                        if process_id != 0 {
+                            let pid = format!("{process_id}");
+                            std::process::Command::new("kill").arg(pid).spawn()?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+
+            let process_id_reply = self
+                .connection()
+                .get_property(
+                    false,
+                    window,
+                    *self.atoms.get("_NET_WM_PID").unwrap(),
+                    AtomEnum::CARDINAL,
+                    0,
+                    1,
+                )?
+                .reply()?;
+
+            if process_id_reply.value_len != 0 && process_id_reply.format == 32 {
+                let process_id = process_id_reply.value32().unwrap().collect::<Vec<u32>>()[0];
+                #[cfg(debug_assertions)]
+                println!("killing {process_id}");
+                std::process::Command::new("kill")
+                    .arg(format!("{process_id}"))
+                    .spawn()?;
+                return Ok(());
+            }
+
+            self.connection().destroy_subwindows(window)?;
+            self.connection().destroy_window(window)?;
+        }
+
+        Ok(())
+    }
+
+    fn action_focus(&mut self, direction: Direction) -> WmResult {
+        if let Some(window) = self.client_focus.focused_client() {
+            let workspace = self.get_focused_workspace()?;
+            let container = workspace.find_by_window_id(window)?;
+            let container_id = container.id();
+
+            let container_to_focus_option = match direction {
+                Direction::Right => Some(workspace.next_container(*container_id)),
+                Direction::Left => Some(workspace.previous_container(*container_id)),
+                Direction::Up => Some(workspace.previous_container(*container_id)),
+                Direction::Down => Some(workspace.next_container(*container_id)),
+            };
+
+            if let Some(container_to_focus) = container_to_focus_option {
+                if let Some(window_to_focus) = container_to_focus?.data().window_id() {
+                    self.connection().set_input_focus(
+                        InputFocus::NONE,
+                        window_to_focus,
+                        x11rb::CURRENT_TIME,
+                    )?;
+                    self.client_focus.set_focused_client(window_to_focus);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn action_goto(&mut self, workspace_id: WorkspaceId) -> WmResult {
+        let workspace = self.workspace_with_id(workspace_id).ok_or_else(|| {
+            crate::errors::Error::Generic(format!(
+                "workspace error: unable to find workspace with id {workspace_id}"
+            ))
+        })?;
+        if let Some(current_workspace_id) = self.focused_workspace {
+            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
+                for each in current_workspace.iter_containers()? {
+                    if let Some(wid) = each.data().window_id() {
+                        self.connection().unmap_subwindows(wid)?;
+                        self.connection().unmap_window(wid)?;
+                    }
+                }
+            }
+        }
+
+        for container in workspace.iter_containers()? {
+            if let Some(window) = container.data().window_id() {
+                self.connection().map_window(window)?;
+            }
+        }
+
+        self.focused_workspace = Some(workspace_id);
+
+        Ok(())
+    }
+
+    fn action_move(&mut self, workspace_id: WorkspaceId) -> WmResult {
+        // get currently focused client id, retrieve it from its workspace, find the other
+        // workspace and move the client to that second workspace
+        let connection = self.connection();
+        let focused_client = self
+            .client_focus
+            .focused_client()
+            .ok_or_else(|| Error::Generic("move error: no focused client".into()))?;
+        let root_geometry = self.root_geometry()?;
+        self.connection().unmap_subwindows(focused_client)?;
+        self.connection().unmap_window(focused_client)?;
+        let focused_workspace = self.get_focused_workspace_mut()?;
+        let container = focused_workspace.remove_and_return_window(focused_client)?;
+        focused_workspace.apply_layout(root_geometry, connection.clone())?;
+        if let Some(other_workspace) = self.workspace_with_id_mut(workspace_id) {
+            other_workspace.insert_container(container)?;
+            other_workspace.apply_layout(root_geometry, connection)?;
+        }
+
+        Ok(())
+    }
+
+    fn action_change_layout(&mut self, layout: String) -> WmResult {
+        let connection = self.connection();
+        let root_geometry = self.root_geometry()?;
+        let workspace = self.get_focused_workspace_mut()?;
+
+        workspace.change_layout(layout)?;
+        workspace.apply_layout(root_geometry, connection)?;
+
+        Ok(())
+    }
+    fn action_cycle_layout(&mut self) -> WmResult {
+        let connection = self.connection();
+        let root_geometry = self.root_geometry()?;
+        let workspace = self.get_focused_workspace_mut()?;
+
+        workspace.cycle_layout()?;
+        workspace.apply_layout(root_geometry, connection)?;
+        Ok(())
+    }
+
+    fn action_toggle_float(&mut self) -> WmResult {
+        let connection = self.connection();
+        let root_geometry = self.root_geometry()?;
+        let focused_client_id = match self.client_focus.focused_client() {
+            Some(c) => c,
+            None => return Err("clinet focus error: there is no client currently in focus.".into()),
+        };
+        let workspace = self.get_focused_workspace_mut()?;
+
+        let container = workspace.find_by_window_id_mut(focused_client_id)?;
+
+        if container.is_tiled() {
+            container.into_floating()?
+        } else {
+            container.into_layout()?
+        }
+
+        let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
+        connection
+            .clone()
+            .configure_window(focused_client_id, &window_config)?;
+        workspace.apply_layout(root_geometry, connection.clone())?;
+        connection.clone().flush()?;
 
         Ok(())
     }
