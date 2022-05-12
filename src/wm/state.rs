@@ -11,7 +11,7 @@ use x11rb::{
 };
 
 use crate::{
-    config::Keybinds,
+    config::{Config, Keybinds},
     errors::{Error, WmResult},
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
@@ -38,19 +38,22 @@ pub struct State {
     atoms: HashMap<String, u32>,
     is_dragging: bool,
     is_resizing: bool,
+    config: Rc<Config>,
 }
 
 const ANY_KEY_MASK: u8 = 0;
 const ANY_MOD_KEY_MASK: u16 = 32768;
 const MIN_WIDTH: u16 = 160;
 const MIN_HEIGHT: u16 = 90;
+// TODO: make this a config setting
+const DRAG_SPEED_COEFFICIENT: f32 = 1.5;
 
 impl State {
     /// Connect to the X server and create WM state.
     ///
     /// If a name of the display is given, use that display, otherwise use the display from the
     /// DISPLAY environmental variable.
-    pub fn new(name: Option<&str>) -> WmResult<Self> {
+    pub fn new(name: Option<&str>, config: Rc<Config>) -> WmResult<Self> {
         let (connection, screen_index) = connect(name)?;
         let display = unsafe {
             if let Some(name_string) = name {
@@ -93,6 +96,7 @@ impl State {
             atoms,
             is_dragging: false,
             is_resizing: false,
+            config,
         })
     }
 
@@ -281,6 +285,9 @@ impl State {
         self.connection()
             .change_window_attributes(window, &cw_attributes)?;
 
+        self.connection()
+            .ungrab_button(ButtonIndex::ANY, window, ANY_MOD_KEY_MASK)?;
+
         let mask: u32 =
             (EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION).into();
 
@@ -315,7 +322,7 @@ impl State {
             .apply_layout(root_window_geometry, connection)?;
 
         self.connection()
-            .set_input_focus(InputFocus::NONE, window, CURRENT_TIME)?;
+            .set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)?;
         self.client_focus.set_focused_client(window);
 
         Ok(())
@@ -337,11 +344,13 @@ impl State {
                 .map(|(index, (window, geometry))| {
                     Client::new_without_process_id(*window, *geometry, new_client_ids[index])
                 })
-                .collect(),
+                .collect::<Vec<Client>>()
+                .into_iter(),
             windows_and_geometries
                 .iter()
                 .map(|_| CT_MASK_TILING)
-                .collect(),
+                .collect::<Vec<u8>>()
+                .into_iter(),
         );
         self.get_focused_workspace_mut()?
             .apply_layout(root_window_geometry, connection)?;
@@ -396,15 +405,14 @@ impl State {
 
         let _ = self.focused_workspace.insert(id);
 
-        /* let configure_window = ConfigureWindowAux::new().stack_mode(Some(StackMode::TOP_IF));
-        self.connection().configure_window(window, &configure_window)?; */
+        let configure_window = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
+        self.connection()
+            .configure_window(window, &configure_window)?;
         self.connection().set_input_focus(
             x11rb::protocol::xproto::InputFocus::NONE,
             window,
             x11rb::CURRENT_TIME,
         )?;
-
-        self.connection().flush()?;
 
         Ok(())
     }
@@ -553,13 +561,13 @@ impl State {
             if dragging {
                 let last_event_position = container.last_position().unwrap();
                 let diff = (
-                    last_event_position.0 as i16 - ev.root_x,
-                    last_event_position.1 as i16 - ev.root_y,
+                    (last_event_position.0 as i16 - ev.root_x) as f32 * DRAG_SPEED_COEFFICIENT,
+                    (last_event_position.1 as i16 - ev.root_y) as f32 * DRAG_SPEED_COEFFICIENT,
                 );
                 match container.data_mut() {
                     crate::wm::container::ContainerType::Floating(c) => {
-                        c.geometry.x -= diff.0;
-                        c.geometry.y -= diff.1;
+                        c.geometry.x -= diff.0 as i16;
+                        c.geometry.y -= diff.1 as i16;
 
                         connection.configure_window(c.window_id(), &c.geometry().into())?;
                     }

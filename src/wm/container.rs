@@ -278,6 +278,7 @@ pub struct ContainerList {
 }
 
 impl ContainerList {
+    /// Create a new container list.
     pub fn new(workspace_id: u32) -> Self {
         Self {
             containers: VecDeque::new(),
@@ -286,11 +287,13 @@ impl ContainerList {
         }
     }
 
+    /// Generate a new container id.
     fn new_id(&mut self) -> ContainerId {
         self.last_container_id += 1;
         ContainerId::new(self.workspace_id, self.last_container_id)
     }
 
+    /// Given a container id, return the index of the container in the container list.
     fn inner_find(&self, id: ContainerId) -> Option<usize> {
         if !id.workspace() == self.workspace_id {
             None
@@ -308,6 +311,8 @@ impl ContainerList {
         }
     }
 
+    /// Given a client and a container type mask, create a new container and insert it into the
+    /// front of the container list.
     pub fn insert_front<C: Into<Client>, I: Into<u8>>(
         &mut self,
         client: C,
@@ -320,6 +325,8 @@ impl ContainerList {
         id
     }
 
+    /// Given a Client and a container type mask, create a new container and insert it into the
+    /// back of the container list.
     pub fn insert_back<C: Into<Client>, I: Into<u8>>(
         &mut self,
         client: C,
@@ -332,6 +339,7 @@ impl ContainerList {
         id
     }
 
+    /// Given to `ContainerId`s, first validate them and them swap the `Container`s in place.
     pub fn swap<I: Into<ContainerId>>(&mut self, a: I, b: I) -> WmResult {
         let a = a.into();
         let b = b.into();
@@ -345,6 +353,7 @@ impl ContainerList {
         return Err(format!("container list error: wrong container id -> {a}").into());
     }
 
+    /// Given a `ContainerId`, remove it from the container list, returning the client.
     pub fn remove<C: Into<ContainerId>>(&mut self, container_id: C) -> WmResult<Container> {
         let c = container_id.into();
         if let Some(i) = self.inner_find(c) {
@@ -356,14 +365,18 @@ impl ContainerList {
         return Err(format!("container list error: unable to remove {c}").into());
     }
 
+    /// Mutably iterate over the `Container`s in the container list.
     pub fn iter_mut(&mut self) -> std::collections::vec_deque::IterMut<Container> {
         self.containers.iter_mut()
     }
 
+    /// Immutably iterate over the `Container`s in the container list.
     pub fn iter(&self) -> std::collections::vec_deque::Iter<Container> {
         self.containers.iter()
     }
 
+    /// Mutably iterate over the `Container`s in the container list, while also returning the
+    /// number of `Container`s that are of the type of `InLayout`.
     pub fn iter_in_layout_mut(
         &mut self,
     ) -> (usize, std::collections::vec_deque::IterMut<Container>) {
@@ -371,6 +384,7 @@ impl ContainerList {
         (len, self.containers.iter_mut())
     }
 
+    /// Given a `ContainerId`, return a result containing a mutable reference to that `Container`.
     pub fn find_mut<C: Into<ContainerId>>(&mut self, container_id: C) -> WmResult<&mut Container> {
         let c = container_id.into();
         if let Some(i) = self.inner_find(c) {
@@ -379,6 +393,7 @@ impl ContainerList {
         return Err(format!("container list error: unable to find {}", c).into());
     }
 
+    /// Given a `ContainerId`, return a result containing an immutable reference to that `Container`.
     pub fn find<C: Into<ContainerId>>(&self, container_id: C) -> WmResult<&Container> {
         let c = container_id.into();
         if let Some(i) = self.inner_find(c) {
@@ -387,6 +402,8 @@ impl ContainerList {
         return Err(format!("container list error: unable to find {c}").into());
     }
 
+    /// Given an X window id(u32), return the `ContainerId` of the `Container`, which holds the client
+    /// with the specified window id.
     pub fn id_for_window<I: Into<u32>>(&self, window_id: I) -> WmResult<ContainerId> {
         let wid = window_id.into();
         for c in &self.containers {
@@ -403,6 +420,8 @@ impl ContainerList {
         .into());
     }
 
+    /// Given a process id, return the `ContainerId` of the `Container`, which holds the client
+    /// with the specified process id.
     pub fn id_for_process<I: Into<u32>>(&self, process_id: I) -> WmResult<ContainerId> {
         let pid = process_id.into();
         for c in &self.containers {
@@ -419,6 +438,7 @@ impl ContainerList {
         .into());
     }
 
+    /// Return an immutable reference to the next `Container` in the list, given a `ContainerId`.
     pub fn next_for_id<C: Into<ContainerId>>(&self, id: C) -> WmResult<&Container> {
         if let Some(mut index) = self.inner_find(id.into()) {
             if index == self.containers.len() - 1 {
@@ -434,6 +454,7 @@ impl ContainerList {
         Err("container list error: unable to get next container!".into())
     }
 
+    /// Return an immutable reference to the previous `Container` in the list, given a `ContainerId`.
     pub fn previous_for_id<C: Into<ContainerId>>(&self, id: C) -> WmResult<&Container> {
         if let Some(mut index) = self.inner_find(id.into()) {
             if index == 0 {
@@ -449,7 +470,9 @@ impl ContainerList {
         Err("container list error: unable to get next container!".into())
     }
 
-    pub fn insert_back_full(&mut self, mut container: Container) -> WmResult<ContainerId> {
+    /// Given an already existing `Container`, generate a new id for it and insert it into the back
+    /// of the list, returning the new `ContainerId`.
+    pub fn container_insert_back(&mut self, mut container: Container) -> WmResult<ContainerId> {
         let new_id = self.new_id();
         container.container_id = new_id;
         self.containers.push_back(container);

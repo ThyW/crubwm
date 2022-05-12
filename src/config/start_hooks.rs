@@ -1,6 +1,6 @@
 use crate::errors::{Error, WmResult};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HookType {
     Startup,
     Always,
@@ -18,7 +18,7 @@ impl TryFrom<String> for HookType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Hook {
     pub hook_type: HookType,
     pub hook_args: Vec<String>,
@@ -34,7 +34,7 @@ impl Hook {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StartHooks(Vec<Hook>);
 
 impl StartHooks {

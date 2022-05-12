@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use x11rb::{connection::Connection, protocol::Event};
 
 use crate::{
@@ -8,14 +10,14 @@ use crate::{
 };
 
 pub mod actions;
-mod atoms;
-mod container;
-mod focus_stack;
-mod geometry;
-mod keyman;
-mod layouts;
-mod state;
-mod workspace;
+pub mod atoms;
+pub mod container;
+pub mod focus_stack;
+pub mod geometry;
+pub mod keyman;
+pub mod layouts;
+pub mod state;
+pub mod workspace;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");
@@ -29,7 +31,7 @@ fn print_help_message() {
 /// the window manager.
 pub struct Wm {
     /// The configuration of the window manager, holding all keybinds, hooks and settings.
-    config: crate::config::Config,
+    config: Rc<crate::config::Config>,
     /// Window manager's state. Holds information about X server connection, clients, workspaces
     /// geometries, etc...
     state: State,
@@ -38,13 +40,17 @@ pub struct Wm {
 impl Wm {
     /// Create a new window manager instance.
     pub fn new(config: Config) -> WmResult<Self> {
-        let display_name = match config.options.display_name.is_empty() {
-            false => Some(config.options.display_name.as_str()),
+        let c = config.clone();
+        let display_name = match c.options.display_name.is_empty() {
+            false => Some(c.options.display_name.as_str()),
             true => None,
         };
 
+        println!("{:#?}", config.workspace_settings.get()[0]);
+        let config = Rc::new(config);
+
         // create the state manager here.
-        let state = State::new(display_name)?;
+        let state = State::new(display_name, config.clone())?;
 
         Ok(Self { config, state })
     }
@@ -107,7 +113,6 @@ impl Wm {
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
-                println!("handling enter event: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
             Event::LeaveNotify(_) => {}
@@ -120,17 +125,17 @@ impl Wm {
             Event::ButtonRelease(e) => {
                 self.state.handle_button_release(&e)?;
             }
-            Event::ClientMessage(e) => {
+            Event::ClientMessage(_e) => {
                 #[cfg(debug_assertions)]
-                println!("client message: {}", e.window);
+                println!("client message: {}", _e.window);
             }
-            Event::Expose(e) => {
+            Event::Expose(_e) => {
                 #[cfg(debug_assertions)]
-                println!("expose event on window: {}", e.window);
+                println!("expose event on window: {}", _e.window);
             }
-            Event::UnmapNotify(e) => {
+            Event::UnmapNotify(_e) => {
                 #[cfg(debug_assertions)]
-                println!("unmap event: {}", e.window)
+                println!("unmap event: {}", _e.window)
             }
             Event::DestroyNotify(e) => {
                 self.state.unmanage_window(e.window)?;

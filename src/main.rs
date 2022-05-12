@@ -7,12 +7,27 @@ use errors::WmResult;
 use parsers::{ArgumentParser, ConfigParser};
 use wm::Wm;
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, process::exit};
 
-fn main() -> WmResult {
+fn main() {
     let args: VecDeque<String> = std::env::args().collect();
-    let commands = ArgumentParser::parse(args)?;
-    let config = ConfigParser::parse(&commands)?;
+    if let Ok(commands) = print_err(ArgumentParser::parse(args)) {
+        if let Ok(config) = print_err(ConfigParser::parse(&commands)) {
+            if let Ok(mut wm) = print_err(Wm::new(config)) {
+                if let Err(_) = print_err(wm.run(commands)) {
+                    exit(1)
+                }
+            }
+        }
+    }
+}
 
-    Wm::new(config)?.run(commands)
+fn print_err<T>(input: WmResult<T>) -> WmResult<T> {
+    match input {
+        Ok(t) => Ok(t),
+        Err(e) => {
+            eprintln!("{}", &e);
+            Err(e)
+        }
+    }
 }

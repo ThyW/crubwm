@@ -2,6 +2,7 @@ use crate::errors::WmResult;
 
 #[derive(Debug)]
 #[allow(unused)]
+#[derive(Clone)]
 pub struct Options {
     /// Should a window border be shown on the given side of the window?
     ///
@@ -45,6 +46,25 @@ pub struct Options {
     /// Default is an empty string, which tells the WM to use the value from the DISPLAY environmental
     /// variable.
     pub display_name: String,
+
+    /// Should a gap be produced on the given side of the window?
+    ///
+    /// Default: disable for all
+    pub gap_top: bool,
+    pub gap_bottom: bool,
+    pub gap_left: bool,
+    pub gap_right: bool,
+
+    /// Size, in pixels, of the gap between windows on each side.
+    ///
+    /// If the gap on the given side is disabled, the value will be ignored. Value of 0 implies
+    /// that the border should not be shown.
+    ///
+    /// Default: 0 for all
+    pub gap_top_size: u32,
+    pub gap_bottom_size: u32,
+    pub gap_left_size: u32,
+    pub gap_right_size: u32,
 }
 
 impl Default for Options {
@@ -65,6 +85,16 @@ impl Default for Options {
             show_window_name: true,
             window_name_position: "left".to_string(),
             display_name: "".to_string(),
+
+            gap_top: false,
+            gap_bottom: false,
+            gap_left: false,
+            gap_right: false,
+
+            gap_top_size: 0,
+            gap_bottom_size: 0,
+            gap_left_size: 0,
+            gap_right_size: 0,
         }
     }
 }
@@ -122,9 +152,58 @@ impl Options {
                 }
             }
             "display_name" => self.display_name = value,
+            "gap_top" => {
+                let val = value.to_lowercase().parse::<bool>()?;
+
+                self.gap_top = val;
+            }
+            "gap_bottom" => {
+                let val = value.to_lowercase().parse::<bool>()?;
+
+                self.gap_bottom = val;
+            }
+            "gap_left" => {
+                let val = value.to_lowercase().parse::<bool>()?;
+
+                self.gap_left = val;
+            }
+            "gap_right" => {
+                let val = value.to_lowercase().parse::<bool>()?;
+
+                self.gap_right = val;
+            }
+            "gap_top_size" => {
+                let val = value.to_lowercase().parse::<u32>()?;
+
+                self.gap_top_size = val;
+            }
+            "gap_bottom_size" => {
+                let val = value.to_lowercase().parse::<u32>()?;
+
+                self.gap_bottom_size = val;
+            }
+            "gap_left_size" => {
+                let val = value.to_lowercase().parse::<u32>()?;
+
+                self.gap_left_size = val;
+            }
+            "gap_right_size" => {
+                let val = value.to_lowercase().parse::<u32>()?;
+
+                self.gap_right_size = val;
+            }
             _ => return Err(format!("option parsing error: Unknown option {name}").into()),
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_bool_parsing() {
+        assert_eq!("FALSE".to_lowercase().parse::<bool>().is_ok(), true);
+        assert_eq!("TruE".to_lowercase().parse::<bool>().is_ok(), true);
     }
 }

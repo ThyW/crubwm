@@ -30,23 +30,28 @@ pub enum Action {
     Noop,
     /// Run a system command.
     Execute(String),
-    /// Kill currently confused window.
+    /// Kill currently focused window.
     Kill,
     /// Switch focus to a workspace, given its ID.
     Goto(usize),
     /// Move currently focused window to a given workspace ID.
     Move(usize),
-    /// Shift foucs in a direction
+    /// Shift foucs in a direction.
+    ///
+    /// Some layouts use `Up` and `Down` as directions, others use `Left` and `Right`.
     Focus(Direction),
-    /// Apply a different layout to the currently focused workspace
+    /// Apply a different layout to the currently focused workspace.
     ChangeLayout(String),
-    /// Cycle layouts for the currently focused workspace
+    /// Cycle layouts for the currently focused workspace.
     CycleLayout,
-    /// Toggle the currently focused window in and out of floaing
+    /// Toggle the currently focused window in and out of floating.
     ToggleFloat,
 }
 
 impl Action {
+    /// Attetmpt to parse a string into an `Action`.
+    ///
+    /// More about this can be found in the `config` and `parsers` section of the documentation.
     pub fn from_str(s: String) -> WmResult<Self> {
         if s.is_empty() {
             Err("action paring error: Action is empty!".into())

@@ -6,7 +6,7 @@ use crate::errors::Error;
 use crate::WmResult;
 
 /// The default config path is located in `~/.config/crubwm/config`
-const CONFIG_PATH: &str = "~/.config/crubwm/config";
+const CONFIG_PATH: &str = ".config/crubwm/config";
 
 /// Command line argument parser.
 ///
@@ -144,7 +144,13 @@ impl ConfigParser {
     /// `~/.config/crubwm/config`.
     pub fn parse(commands: &Vec<Command>) -> WmResult<Config> {
         let mut ret = Config::default();
-        let mut path = CONFIG_PATH.to_owned();
+        let mut var = std::env::var("HOME").map_err(|_| {
+            Error::Generic("parsing error: unable to read $HOME environmental variable.".into())
+        })?;
+        var.push('/');
+        var.push_str(CONFIG_PATH);
+        let mut path = var;
+        println!("{path}");
 
         // check whether a different config file should be loaded
         for command in commands {
@@ -183,6 +189,17 @@ impl ConfigParser {
                     } => {
                         ret.options.add(option_name, option_value)?;
                     }
+                    ConfigLine::WorkspaceSetting {
+                        workspace_identifier,
+                        workspace_setting_name,
+                        workspace_setting_value,
+                    } => {
+                        ret.workspace_settings.add(
+                            workspace_identifier.parse::<u32>()?,
+                            workspace_setting_name,
+                            workspace_setting_value,
+                        )?;
+                    }
                 }
             }
         }
@@ -220,6 +237,11 @@ enum ConfigLine {
         /// Value of the option
         option_value: String,
     },
+    WorkspaceSetting {
+        workspace_identifier: String,
+        workspace_setting_name: String,
+        workspace_setting_value: Vec<String>,
+    },
 }
 
 impl TryFrom<String> for ConfigLine {
@@ -252,6 +274,15 @@ impl TryFrom<String> for ConfigLine {
             return Ok(Self::Hook {
                 hook_type: parser.0[0].clone(),
                 hook_args: parser.0[1..].to_vec(),
+            });
+        } else if let Some(s) = line.strip_prefix("workspace_setting") {
+            let rest_of_line = s;
+            let parser = LineParser::parse(rest_of_line.to_string());
+
+            return Ok(Self::WorkspaceSetting {
+                workspace_identifier: parser.0[0].clone(),
+                workspace_setting_name: parser.0[1].clone(),
+                workspace_setting_value: parser.0[2..].to_vec(),
             });
         } else if line.starts_with('#') {
             return Ok(Self::Comment(line));
