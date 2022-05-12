@@ -1,3 +1,4 @@
+# keybinds
 keybind "<Alt>l" execute "alacritty"
 keybind "<Alt>d" execute "dmenu_run"
 keybind "<Alt>1" goto "1"
@@ -28,6 +29,15 @@ keybind "<Alt>h" change_layout "TilingEqualHorizontal"
 keybind "<Alt>v" change_layout "TilingEqualVertical"
 keybind "<Alt>f" cycle_layout
 keybind "<Alt><space>" toggle_float
+
+# options
 option "border_color" "#00ff00"
+option "window_name_position" "left"
+
+# hooks
 hook "startup" "notify-send 'hello world'"
 hook "startup" "notify-send 'hello world 2'"
+
+# workspace settings
+workspace_setting 1 name "hello_world"
+workspace_setting 1 allowed_layouts "this" "that" "hello" "world"

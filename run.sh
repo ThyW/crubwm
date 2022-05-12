@@ -11,7 +11,7 @@ set -e
 NDISPLAY=:1
 
 # run Xephyr
-Xephyr -ac -screen 800x600 +extension GLX "${NDISPLAY}" &
+Xephyr -ac -screen 800x600 +extension GLX "${NDISPLAY}" 2>/dev/null &
 # save it's pid
 xephyr=$!
 
