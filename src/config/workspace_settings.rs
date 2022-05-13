@@ -4,7 +4,7 @@ use crate::errors::{Error, WmResult};
 
 #[derive(Clone, Debug)]
 pub struct WorkspaceSettings {
-    identifier: u32,
+    pub identifier: u32,
     pub name: String,
     pub allowed_layouts: Vec<String>,
     pub output: String,
@@ -88,5 +88,14 @@ impl AllWorkspaceSettings {
 
     pub fn get(&self) -> &Vec<WorkspaceSettings> {
         &self.0
+    }
+}
+
+impl IntoIterator for AllWorkspaceSettings {
+    type Item = WorkspaceSettings;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) ->  Self::IntoIter {
+        self.0.into_iter()
     }
 }

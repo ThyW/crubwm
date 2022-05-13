@@ -30,7 +30,10 @@ impl Workspace {
 
     /// Change the current workspace layout, given a string identifying the new layout.
     pub fn change_layout(&mut self, layout_string: String) -> WmResult {
-        self.layout = LayoutType::try_from(layout_string.as_str())?;
+        let layout = LayoutType::try_from(layout_string.as_str())?;
+        if layout as u64 & self.allowed_layouts_mask == 1 {
+            self.layout = layout
+        }
 
         Ok(())
     }

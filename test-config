@@ -27,6 +27,7 @@ keybind "<Alt>k" kill
 keybind "<Alt>i" execute "firefox-nightly"
 keybind "<Alt>h" change_layout "TilingEqualHorizontal"
 keybind "<Alt>v" change_layout "TilingEqualVertical"
+keybind "<Alt>m" change_layout "TilingMasterStack"
 keybind "<Alt>f" cycle_layout
 keybind "<Alt><space>" toggle_float
 
@@ -40,4 +41,4 @@ hook "startup" "notify-send 'hello world 2'"
 
 # workspace settings
 workspace_setting 1 name "hello_world"
-workspace_setting 1 allowed_layouts "this" "that" "hello" "world"
+workspace_setting 1 allowed_layouts "TilingEqualHorizontal" "TilingEqualVertical"

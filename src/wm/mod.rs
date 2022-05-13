@@ -66,7 +66,7 @@ impl Wm {
         }
 
         // instantiate workspaces
-        self.state.init_workspaces();
+        self.state.init_workspaces()?;
         // check for all open windows and manage them
         self.state.become_wm()?;
         // notify the window manager of the keybinds
