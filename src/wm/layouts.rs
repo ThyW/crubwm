@@ -21,6 +21,22 @@ impl LayoutMask {
     pub const ALL: u64 = LayoutMask::TILING_EQUAL_HORIZONTAL
         | LayoutMask::TILING_EQUAL_VERTICAL
         | LayoutMask::TILING_MASTER_STACK;
+
+    pub fn from_slice(slice: &Vec<String>) -> WmResult<u64> {
+        let mut mask = 0u64;
+        for each in slice.iter() {
+            let eeach = each.clone().to_lowercase();
+            if eeach == "none" {
+                return Ok(0);
+            } else if eeach == "all" {
+                return Ok(Self::ALL);
+            } else {
+                let layout = LayoutType::try_from(eeach.as_str())?;
+                mask |= layout as u64
+            }
+        }
+        Ok(mask)
+    }
 }
 
 pub(crate) trait Layout<'a> {
@@ -68,7 +84,7 @@ impl TryFrom<&str> for LayoutType {
             "tilingmasterstack" => Ok(Self::TilingMasterStack),
             _ => {
                 return Err(
-                    format!("layout error: {str} is not recognized as a valid layout.").into(),
+                    format!("layout error: \"{str}\" is not recognized as a valid layout.").into(),
                 )
             }
         }

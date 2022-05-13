@@ -211,13 +211,18 @@ impl State {
     ///
     /// In the future, this method should be loading workspace names, ids and indices from the
     /// Config structure.
-    pub fn init_workspaces(&mut self) {
-        for i in 1..11 {
-            self.workspaces
-                .push(Workspace::new(format!("{i}"), i, LayoutMask::ALL));
-        }
+    pub fn init_workspaces(&mut self) -> WmResult {
+        for workspace_settings in self.config.workspace_settings.clone().into_iter() {
+            let layout_mask = LayoutMask::from_slice(&workspace_settings.allowed_layouts)?;
+            self.workspaces.push(Workspace::new(
+                workspace_settings.name.clone(),
+                workspace_settings.identifier,
+                layout_mask,
+            ));
 
-        self.focused_workspace = Some(self.workspaces[0].id);
+            self.focused_workspace = Some(self.workspaces[0].id);
+        }
+        Ok(())
     }
 
     /// Get a reference to the focused workspace.
