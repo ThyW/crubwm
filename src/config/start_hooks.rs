@@ -47,10 +47,11 @@ impl StartHooks {
 
     pub fn run(&self) -> WmResult {
         for hook in &self.0 {
+            println!("running hook: {:?}", hook.hook_args);
             let _ = std::process::Command::new("bash")
                 .arg("-c")
                 .args(hook.hook_args.as_slice())
-                .spawn()?;
+                .spawn()?.wait()?;
         }
         Ok(())
     }

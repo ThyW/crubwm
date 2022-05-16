@@ -2,8 +2,9 @@
 use std::collections::VecDeque;
 
 use crate::{
+    config::Config,
     errors::{Error, WmResult},
-    wm::geometry::Geometry,
+    wm::geometry::{ClientAttributes, Geometry},
 };
 
 pub const CT_MASK_TILING: u8 = 1 << 0;
@@ -54,21 +55,25 @@ pub struct Client {
     window_id: u32,
     process_id: u32,
     pub geometry: Geometry,
+    pub attributes: ClientAttributes,
     client_id: ClientId,
 }
 
 impl Client {
-    pub fn new<I: Into<u32>, C: Into<ClientId>, G: Into<Geometry>>(
+    pub fn new<I: Into<u32>, CID: Into<ClientId>, G: Into<Geometry>>(
         window_id: I,
         process_id: I,
         geometry: G,
-        client_id: C,
+        client_id: CID,
+        config: &Config,
     ) -> Self {
+        let attrs = ClientAttributes::from(config.clone());
         Self {
             window_id: window_id.into(),
             process_id: process_id.into(),
             geometry: geometry.into(),
             client_id: client_id.into(),
+            attributes: attrs,
         }
     }
 
@@ -76,26 +81,50 @@ impl Client {
         window_id: I,
         geometry: G,
         client_id: C,
+        config: &Config,
     ) -> Self {
+        let attributes = ClientAttributes::from(config.clone());
         Self {
             window_id: window_id.into(),
             process_id: 0,
             geometry: geometry.into(),
             client_id: client_id.into(),
+            attributes,
         }
     }
 
     pub fn window_id(&self) -> u32 {
         self.window_id
     }
+
     pub fn process_id(&self) -> Option<u32> {
         if self.process_id == 0 {
             return None;
         }
         Some(self.process_id)
     }
+
     pub fn geometry(&self) -> Geometry {
         self.geometry
+    }
+
+    pub fn with_gaps(&self) -> Geometry {
+        let mut geom = self.geometry();
+        geom.x = geom.x + self.attributes.gap_left as i16;
+        geom.y = geom.y + self.attributes.gap_top as i16;
+        geom.width = geom.width - 2 * self.attributes.gap_right as u16;
+        geom.height = geom.height - 2 * self.attributes.gap_bottom as u16;
+
+        geom
+    }
+    pub fn with_gaps_inner(&self) -> Geometry {
+        let mut geom = self.geometry();
+        geom.x = geom.x + self.attributes.gap_left as i16 / 2;
+        geom.y = geom.y + self.attributes.gap_top as i16 / 2;
+        geom.width = geom.width - self.attributes.gap_right as u16 / 2;
+        geom.height = geom.height - self.attributes.gap_bottom as u16 / 2;
+
+        geom
     }
 }
 
@@ -270,7 +299,7 @@ impl ContainerType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContainerList {
     containers: VecDeque<Container>,
     workspace_id: u32,

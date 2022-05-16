@@ -34,6 +34,15 @@ keybind "<Alt><space>" toggle_float
 # options
 option "border_color" "#00ff00"
 option "window_name_position" "left"
+option "gap_top" "true"
+option "gap_bottom" "true"
+option "gap_left" "true"
+option "gap_right" "true"
+
+option "gap_top_size" 8
+option "gap_bottom_size" 8
+option "gap_left_size" 8
+option "gap_right_size" 8
 
 # hooks
 hook "startup" "notify-send 'hello world'"
@@ -41,4 +50,5 @@ hook "startup" "notify-send 'hello world 2'"
 
 # workspace settings
 workspace_setting 1 name "hello_world"
-workspace_setting 1 allowed_layouts "TilingEqualHorizontal" "TilingEqualVertical"
+workspace_setting 1 allowed_layouts "all"
+workspace_setting 1 output "primary"

@@ -197,6 +197,75 @@ impl Options {
 
         Ok(())
     }
+
+    /// Returns the tuple contining the width of the window gaps or 0 if that particular gap is
+    /// disabled.
+    ///
+    /// The values return are in the following order:
+    /// - top gap
+    /// - bottom gap
+    /// - left gap
+    /// - right gap
+    pub fn get_gaps(&self) -> (u32, u32, u32, u32) {
+        let mut ret = (0, 0, 0, 0);
+        if self.gap_top {
+            ret.0 = self.gap_top_size;
+        }
+        if self.gap_bottom {
+            ret.1 = self.gap_bottom_size;
+        }
+        if self.gap_left {
+            ret.2 = self.gap_left_size;
+        }
+        if self.gap_right {
+            ret.3 = self.gap_right_size;
+        }
+
+        ret
+    }
+
+    /// Returns the tuple contining the width of the window borders or 0 if that particular border is
+    /// disabled.
+    ///
+    /// The values return are in the following order:
+    /// - top border
+    /// - bottom border
+    /// - left border
+    /// - right border
+    pub fn get_borders(&self) -> (u32, u32, u32, u32) {
+        let mut ret = (0, 0, 0, 0);
+        if self.border_up {
+            ret.0 = self.border_up_size;
+        }
+        if self.border_up {
+            ret.1 = self.border_down_size;
+        }
+        if self.border_up {
+            ret.2 = self.border_left_size;
+        }
+        if self.border_up {
+            ret.3 = self.border_right_size;
+        }
+        ret
+    }
+
+    pub fn convert_border_color(&self) -> u32 {
+        let nums = self
+            .border_color
+            .clone()
+            .strip_prefix("#")
+            .unwrap_or("000000")
+            .to_owned();
+        if nums.len() != 6 {
+            return 0u32;
+        }
+
+        let red = u32::from_str_radix(&nums[0..=1], 16).unwrap_or(0);
+        let green = u32::from_str_radix(&nums[2..=3], 16).unwrap_or(0);
+        let blue = u32::from_str_radix(&nums[4..=5], 16).unwrap_or(0);
+
+        255 << 24 | (red << 16) | (green << 8) | blue
+    }
 }
 
 #[cfg(test)]
@@ -205,5 +274,17 @@ mod tests {
     fn test_bool_parsing() {
         assert_eq!("FALSE".to_lowercase().parse::<bool>().is_ok(), true);
         assert_eq!("TruE".to_lowercase().parse::<bool>().is_ok(), true);
+    }
+
+    use super::*;
+    #[test]
+    fn test_border_parsing() {
+        let mut c = Options::default();
+
+        c.border_color = "#ffffff".to_string();
+        assert_ne!(c.convert_border_color(), 0);
+        assert_eq!(c.convert_border_color(), 0xffffffff);
+        c.border_color = "#fb11cc".to_string();
+        assert_eq!(c.convert_border_color(), 0xfffb11cc)
     }
 }

@@ -65,14 +65,14 @@ impl Wm {
             }
         }
 
+        // run startup hooks
+        self.config.start_hooks.run()?;
         // instantiate workspaces
         self.state.init_workspaces()?;
         // check for all open windows and manage them
         self.state.become_wm()?;
         // notify the window manager of the keybinds
         self.state.init_keyman(self.config.keybinds.clone())?;
-        // run startup hooks
-        self.config.start_hooks.run()?;
 
         // run the event loop, don't stop on errors, just report them and keep going.
         loop {
@@ -110,6 +110,7 @@ impl Wm {
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
             Event::MapRequest(e) => {
+                println!("map request");
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {

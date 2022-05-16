@@ -7,10 +7,7 @@ use crate::{
 };
 
 use std::rc::Rc;
-use x11rb::{
-    protocol::xproto::{ConfigureWindowAux, ConnectionExt},
-    rust_connection::RustConnection,
-};
+use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt};
 
 pub struct LayoutMask;
 
@@ -39,12 +36,12 @@ impl LayoutMask {
     }
 }
 
-pub(crate) trait Layout<'a> {
-    fn apply<G: Into<Geometry>>(
+pub trait Layout<'a> {
+    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection>(
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
-        connection: Rc<RustConnection>,
+        connection: Rc<C>,
     ) -> WmResult;
 }
 
@@ -92,11 +89,11 @@ impl TryFrom<&str> for LayoutType {
 }
 
 impl<'a> Layout<'a> for LayoutType {
-    fn apply<G: Into<Geometry>>(
+    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection>(
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
-        connection: Rc<RustConnection>,
+        connection: Rc<C>,
     ) -> WmResult {
         match &self {
             Self::TilingEqualHorizontal => {
@@ -114,18 +111,18 @@ impl<'a> Layout<'a> for LayoutType {
                     match each.data_mut() {
                         ContainerType::Empty(g) => {
                             ii += 1;
-                            g.y = 0;
+                            g.y = screen.y;
                             g.x = width as i16 * ii as i16;
                             g.width = width;
                             g.height = screen.height;
                         }
                         ContainerType::InLayout(c) => {
                             ii += 1;
-                            c.geometry.y = 0;
+                            c.geometry.y = screen.y;
                             c.geometry.x = width as i16 * ii as i16;
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
-                            let aux: ConfigureWindowAux = c.geometry().into();
+                            let aux: ConfigureWindowAux = c.with_gaps().into();
                             connection.configure_window(c.window_id(), &aux)?;
                         }
                         ContainerType::Floating(_) => (),
@@ -151,18 +148,18 @@ impl<'a> Layout<'a> for LayoutType {
                         ContainerType::Floating(_) => (),
                         ContainerType::Empty(g) => {
                             ii += 1;
-                            g.x = 0;
+                            g.x = screen.x;
                             g.y = height as i16 * ii as i16;
                             g.width = screen.width;
                             g.height = height;
                         }
                         ContainerType::InLayout(c) => {
                             ii += 1;
-                            c.geometry.x = 0;
+                            c.geometry.x = screen.x;
                             c.geometry.y = height as i16 * ii as i16;
                             c.geometry.width = screen.width;
                             c.geometry.height = height;
-                            connection.configure_window(c.window_id(), &c.geometry().into())?;
+                            connection.configure_window(c.window_id(), &c.with_gaps().into())?;
                         }
                     }
                 }
@@ -181,17 +178,18 @@ impl<'a> Layout<'a> for LayoutType {
                     for one in iter.into_iter() {
                         match one.data_mut() {
                             ContainerType::Empty(g) => {
-                                g.x = 0;
-                                g.y = 0;
+                                g.x = screen.x;
+                                g.y = screen.y;
                                 g.width = screen.width;
                                 g.height = screen.height;
                             }
                             ContainerType::InLayout(c) => {
-                                c.geometry.x = 0;
-                                c.geometry.y = 0;
+                                c.geometry.x = screen.x;
+                                c.geometry.y = screen.y;
                                 c.geometry.width = screen.width;
                                 c.geometry.height = screen.height;
-                                connection.configure_window(c.window_id(), &c.geometry().into())?;
+                                connection
+                                    .configure_window(c.window_id(), &c.with_gaps().into())?;
                             }
                             _ => {}
                         };
@@ -226,14 +224,14 @@ impl<'a> Layout<'a> for LayoutType {
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = screen.height;
                                     connection
-                                        .configure_window(c.window_id(), &c.geometry().into())?;
+                                        .configure_window(c.window_id(), &c.with_gaps().into())?;
                                 } else {
                                     c.geometry.x = width as i16 - 1;
                                     c.geometry.y = height as i16 * ii;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = height;
                                     connection
-                                        .configure_window(c.window_id(), &c.geometry().into())?;
+                                        .configure_window(c.window_id(), &c.with_gaps().into())?;
                                 }
                             }
                             _ => {}

@@ -10,6 +10,8 @@ use wm::Wm;
 use std::{collections::VecDeque, process::exit};
 
 fn main() {
+    #[cfg(debug_assertions)]
+    println!("{:?}", (1, true, false));
     let args: VecDeque<String> = std::env::args().collect();
     if let Ok(commands) = print_err(ArgumentParser::parse(args)) {
         if let Ok(config) = print_err(ConfigParser::parse(&commands)) {

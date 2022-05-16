@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use x11rb::rust_connection::RustConnection;
+use x11rb::connection::Connection;
+use x11rb::protocol::randr::get_monitors;
 
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
@@ -8,23 +9,26 @@ use crate::errors::WmResult;
 
 use super::container::{Client, Container, ContainerId, ContainerList};
 
+#[derive(Clone)]
 pub struct Workspace {
     containers: ContainerList,
     layout: LayoutType,
     allowed_layouts_mask: u64,
+    pub output: u32,
     pub name: String,
     pub id: WorkspaceId,
 }
 
 impl Workspace {
     /// Create a new workspace.
-    pub fn new(name: String, id: WorkspaceId, allowed_layouts_mask: u64) -> Self {
+    pub fn new(name: String, id: WorkspaceId, allowed_layouts_mask: u64, output: u32) -> Self {
         Self {
             containers: ContainerList::new(id),
             layout: LayoutType::default(),
             allowed_layouts_mask,
             name,
             id,
+            output,
         }
     }
 
@@ -111,7 +115,12 @@ impl Workspace {
     /// This function takes the size of the screen, or a workspace and applies the layout rules to
     /// all of the container's workspaces. To achieve this, we also require the X connection, so
     /// that the layout rules for the clients can be applied right away.
-    pub fn apply_layout(&mut self, screen: Geometry, connection: Rc<RustConnection>) -> WmResult {
+    pub fn apply_layout<C: x11rb::connection::Connection>(
+        &mut self,
+        root: u32,
+        connection: Rc<C>,
+    ) -> WmResult {
+        let screen = self.workspace_screen_size(connection.clone(), root)?;
         self.layout
             .apply(screen, self.containers.iter_in_layout_mut(), connection)
     }
@@ -173,6 +182,33 @@ impl Workspace {
     /// between workspaces.
     pub fn insert_container(&mut self, container: Container) -> WmResult<ContainerId> {
         self.containers.container_insert_back(container)
+    }
+
+    fn workspace_screen_size<C: Connection>(
+        &self,
+        connection: Rc<C>,
+        root_window: u32,
+    ) -> WmResult<Geometry> {
+        for monitor in get_monitors(connection.as_ref(), root_window, false)?
+            .reply()?
+            .monitors
+        {
+            if monitor.outputs.contains(&self.output) {
+                let mut geom = Geometry::default();
+                geom.x = monitor.x;
+                geom.y = monitor.y;
+                geom.width = monitor.width;
+                geom.height = monitor.height;
+
+                return Ok(geom);
+            }
+        }
+
+        Err(format!(
+            "workspace error: unable to return screen monitor size for output {}",
+            self.output
+        )
+        .into())
     }
 }
 
