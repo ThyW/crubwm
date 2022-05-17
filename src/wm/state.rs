@@ -3,7 +3,7 @@ use x11rb::{
     connect,
     connection::Connection,
     protocol::{
-        randr::{get_monitors, get_output_info},
+        randr::get_monitors,
         xproto::{
             AtomEnum, ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
             EventMask, GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
@@ -19,7 +19,6 @@ use crate::{
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
     wm::container::{Client, ClientId, CT_MASK_TILING},
-    wm::focus_stack::FocusStack,
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
     wm::layouts::LayoutMask,
@@ -35,7 +34,6 @@ pub struct State {
     screen_index: usize,
     workspaces: Workspaces,
     focused_workspace: Option<WorkspaceId>,
-    client_focus: FocusStack,
     key_manager: KeyManager,
     last_client_id: ClientId,
     atoms: HashMap<String, u32>,
@@ -93,7 +91,6 @@ impl State {
             screen_index,
             workspaces: Vec::new(),
             focused_workspace: None,
-            client_focus: FocusStack::new(root_window),
             key_manager: KeyManager::default(),
             last_client_id: 0,
             atoms,
@@ -135,6 +132,18 @@ impl State {
     /// Return the X window id of the root window
     fn root_window(&self) -> u32 {
         self.root_screen().root
+    }
+
+    /// Return the size of the root window.
+    #[allow(unused)]
+    fn root_geometry(&self) -> WmResult<Geometry> {
+        let geom = self
+            .connection()
+            .get_geometry(self.root_window())?
+            .reply()?
+            .into();
+
+        Ok(geom)
     }
 
     /// Go through all workspaces, if they contain a given window: return the reference to the
@@ -209,58 +218,43 @@ impl State {
     pub fn init_workspaces(&mut self) -> WmResult {
         for workspace_settings in self.config.workspace_settings.clone().into_iter() {
             let layout_mask = LayoutMask::from_slice(&workspace_settings.allowed_layouts)?;
-            let output = self.get_output_for_workspace(workspace_settings.output.clone())?;
+            let screen_size =
+                self.get_screen_size_for_workspace(workspace_settings.monitor.clone())?;
+            println!("{}", screen_size);
             self.workspaces.push(Workspace::new(
                 workspace_settings.name.clone(),
                 workspace_settings.identifier,
                 layout_mask,
-                output,
+                self.root_window(),
+                screen_size,
             ));
-
-            self.focused_workspace = Some(self.workspaces[0].id);
         }
+        println!("here");
+        self.focus_workspace(self.workspaces[0].id)?;
+
         Ok(())
     }
 
     /// Helper function to determine which output id should go to witch worksapce.
-    fn get_output_for_workspace(&self, output_name: String) -> WmResult<u32> {
-        let monitors =
-            get_monitors(self.connection().as_ref(), self.root_window(), false)?.reply()?;
-        println!("{:#?}", monitors.monitors);
+    fn get_screen_size_for_workspace(&self, monitor_number_string: String) -> WmResult<Geometry> {
+        // TODO: if this fails a warning should be returned.
+        let monitor_number = monitor_number_string.parse::<usize>().unwrap_or(0);
 
-        for monitor_info in monitors.monitors.clone() {
-            if output_name.to_lowercase() == "primary" {
-                if monitor_info.primary {
-                    if !monitor_info.outputs.is_empty() {
-                        return Ok(monitor_info.outputs[0]);
-                    }
-                }
-            }
-            for output_id in monitor_info.outputs {
-                let output_info =
-                    get_output_info(self.connection().as_ref(), output_id, CURRENT_TIME)?
-                        .reply()?;
+        let monitors = get_monitors(self.connection().as_ref(), self.root_window(), false)?
+            .reply()?
+            .monitors
+            .clone();
 
-                let name = String::from_utf8(output_info.name)?;
-                if name == output_name {
-                    return Ok(output_id);
-                }
-            }
+        if let Some(monitor) = monitors.get(monitor_number) {
+            let mut geometry = Geometry::default();
+            geometry.x = monitor.x;
+            geometry.y = monitor.y;
+            geometry.width = monitor.width;
+            geometry.height = monitor.height;
+            return Ok(geometry);
         }
 
-        if !monitors.monitors.is_empty() {
-            let mut i = 0;
-            let mut monitor = monitors.monitors.get(i);
-            while let Some(mon) = monitor {
-                if !mon.outputs.is_empty() {
-                    return Ok(mon.outputs[0])
-                };
-                i += 1;
-                monitor = monitors.monitors.get(i)
-            }
-        }
-
-        Err(format!("worksapce error: unable to construct workspace: no output with name \"{output_name}\" found.").into())
+        Err(format!("worksapce error: unable to construct workspace: monitor with index {monitor_number_string} not found.").into())
     }
 
     /// Get a reference to the focused workspace.
@@ -283,6 +277,72 @@ impl State {
         }
 
         Err("focused workspace could not be found".into())
+    }
+
+    #[allow(unused)]
+    fn get_workspace_under_cursor(&self) -> WmResult<&Workspace> {
+        let cursor = self
+            .connection()
+            .query_pointer(self.root_window())?
+            .reply()?;
+        let (x, y) = (cursor.root_x, cursor.root_y);
+
+        for ws in self.workspaces.iter() {
+            let g = ws.screen();
+            if x >= g.x && x <= g.x + g.width as i16 && y >= g.y && y <= g.y + g.height as i16 {
+                return Ok(ws);
+            }
+        }
+
+        Err("cursor is not in any workspace currently!".into())
+    }
+
+    fn get_workspace_under_cursor_mut(&mut self) -> WmResult<&mut Workspace> {
+        let cursor = self
+            .connection()
+            .query_pointer(self.root_window())?
+            .reply()?;
+        let (x, y) = (cursor.root_x, cursor.root_y);
+
+        for ws in self.workspaces.iter_mut() {
+            let g = ws.screen();
+            if x >= g.x && x <= g.x + g.width as i16 && y >= g.y && y <= g.y + g.height as i16 {
+                return Ok(ws);
+            }
+        }
+
+        Err("cursor is not in any workspace currently!".into())
+    }
+
+    pub fn focus_workspace(&mut self, workspace_id: WorkspaceId) -> WmResult {
+        if workspace_id == self.focused_workspace.unwrap_or(0) {
+            return Ok(());
+        }
+        let workspace = self.workspace_with_id(workspace_id).ok_or_else(|| {
+            crate::errors::Error::Generic(format!(
+                "workspace error: unable to find workspace with id {workspace_id}"
+            ))
+        })?;
+        if let Some(current_workspace_id) = self.focused_workspace {
+            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
+                for each in current_workspace.iter_containers()? {
+                    if let Some(wid) = each.data().window_id() {
+                        self.connection().unmap_subwindows(wid)?;
+                        self.connection().unmap_window(wid)?;
+                    }
+                }
+            }
+        }
+
+        for container in workspace.iter_containers()? {
+            if let Some(window) = container.data().window_id() {
+                self.connection().map_window(window)?;
+            }
+        }
+
+        self.focused_workspace = Some(workspace_id);
+
+        Ok(())
     }
 
     /// Become a window manager, take control of all open windows on the X server.
@@ -312,8 +372,11 @@ impl State {
         let config = self.config.clone();
         let connection = self.connection();
         let geometry = self.connection().get_geometry(window)?.reply()?;
-        let root_window = self.root_window();
         let new_client_id = self.new_client_id();
+
+        let workspace = self.get_workspace_under_cursor_mut()?;
+        let id = workspace.id;
+        self.focus_workspace(id)?;
 
         self.get_focused_workspace_mut()?.insert_client(
             Client::new_without_process_id(window, geometry, new_client_id, &config),
@@ -363,11 +426,13 @@ impl State {
             .reparent_window(window, self.root_window(), 0, 0)?;
         self.connection().map_window(window)?;
         self.get_focused_workspace_mut()?
-            .apply_layout(root_window, connection)?;
+            .apply_layout(connection, None)?;
 
         self.connection()
-            .set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)?;
-        self.client_focus.set_focused_client(window);
+            .set_input_focus(InputFocus::NONE, window, CURRENT_TIME)?;
+        self.get_focused_workspace_mut()?
+            .focus
+            .set_focused_client(window);
 
         Ok(())
     }
@@ -378,7 +443,6 @@ impl State {
     pub fn manage_windows(&mut self, windows_and_geometries: Vec<(u32, Geometry)>) -> WmResult {
         let connection = self.connection();
         let config = self.config.clone();
-        let root_window = self.root_window();
         let new_client_ids = (0usize..windows_and_geometries.len())
             .map(|_| self.new_client_id())
             .collect::<Vec<u64>>();
@@ -403,7 +467,7 @@ impl State {
                 .into_iter(),
         );
         self.get_focused_workspace_mut()?
-            .apply_layout(root_window, connection)?;
+            .apply_layout(connection, None)?;
 
         for (window, _) in windows_and_geometries {
             self.connection().map_window(window)?;
@@ -417,24 +481,29 @@ impl State {
     /// First, start by finding the window than remove it and apply the correct geometries to the
     /// rest of the windows in the workspace.
     pub fn unmanage_window(&mut self, window: u32) -> WmResult {
-        let root_window = self.root_window();
         let connection = self.connection();
 
         let workspace_option = self.workspace_for_window_mut(window);
 
         if let Some(workspace) = workspace_option {
             workspace.remove_window(window)?;
-            workspace.apply_layout(root_window, connection)?;
+            workspace.apply_layout(connection, None)?;
         }
 
         // set input focus to previously focused client
-        if let Some(previous_window_id) = self.client_focus.previously_focused_client() {
+        if let Some(previous_window_id) = self
+            .get_focused_workspace_mut()?
+            .focus
+            .previously_focused_client()
+        {
             self.connection().set_input_focus(
                 InputFocus::NONE,
                 previous_window_id,
                 CURRENT_TIME,
             )?;
-            self.client_focus.remove_client(window);
+            self.get_focused_workspace_mut()?
+                .focus
+                .remove_client(window);
         }
 
         Ok(())
@@ -446,17 +515,19 @@ impl State {
     /// In the future, this will also handle the decorators, WM properties and other necessary
     /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
-        self.client_focus.set_focused_client(window);
         let mut id = self.get_focused_workspace()?.id;
 
         if let Some(workspace) = self.workspace_for_window(window) {
             id = workspace.id
         }
 
-        let _ = self.focused_workspace.insert(id);
+        self.focus_workspace(id)?;
+        self.get_focused_workspace_mut()?
+            .focus
+            .set_focused_client(window);
 
         self.connection()
-            .set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)?;
+            .set_input_focus(InputFocus::NONE, window, CURRENT_TIME)?;
 
         Ok(())
     }
@@ -693,7 +764,7 @@ impl State {
     }
 
     fn action_kill(&mut self) -> WmResult {
-        if let Some(window) = self.client_focus.focused_client() {
+        if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             if let Some(workspace) = self.workspace_for_window(window) {
                 if let Ok(container) = workspace.find_by_window_id(window) {
                     if let Some(process_id) = container.data().process_id() {
@@ -736,8 +807,9 @@ impl State {
     }
 
     fn action_focus(&mut self, direction: Direction) -> WmResult {
-        if let Some(window) = self.client_focus.focused_client() {
-            let workspace = self.get_focused_workspace()?;
+        let connection = self.connection();
+        if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
+            let workspace = self.get_focused_workspace_mut()?;
             let container = workspace.find_by_window_id(window)?;
             let container_id = container.id();
 
@@ -750,12 +822,12 @@ impl State {
 
             if let Some(container_to_focus) = container_to_focus_option {
                 if let Some(window_to_focus) = container_to_focus?.data().window_id() {
-                    self.connection().set_input_focus(
+                    connection.set_input_focus(
                         InputFocus::NONE,
                         window_to_focus,
                         x11rb::CURRENT_TIME,
                     )?;
-                    self.client_focus.set_focused_client(window_to_focus);
+                    workspace.focus.set_focused_client(window_to_focus);
                 }
             }
         }
@@ -764,29 +836,7 @@ impl State {
     }
 
     fn action_goto(&mut self, workspace_id: WorkspaceId) -> WmResult {
-        let workspace = self.workspace_with_id(workspace_id).ok_or_else(|| {
-            crate::errors::Error::Generic(format!(
-                "workspace error: unable to find workspace with id {workspace_id}"
-            ))
-        })?;
-        if let Some(current_workspace_id) = self.focused_workspace {
-            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
-                for each in current_workspace.iter_containers()? {
-                    if let Some(wid) = each.data().window_id() {
-                        self.connection().unmap_subwindows(wid)?;
-                        self.connection().unmap_window(wid)?;
-                    }
-                }
-            }
-        }
-
-        for container in workspace.iter_containers()? {
-            if let Some(window) = container.data().window_id() {
-                self.connection().map_window(window)?;
-            }
-        }
-
-        self.focused_workspace = Some(workspace_id);
+        self.focus_workspace(workspace_id)?;
 
         Ok(())
     }
@@ -796,10 +846,10 @@ impl State {
         // workspace and move the client to that second workspace
         let connection = self.connection();
         let focused_client = self
-            .client_focus
+            .get_focused_workspace_mut()?
+            .focus
             .focused_client()
             .ok_or_else(|| Error::Generic("move error: no focused client".into()))?;
-        let root_window = self.root_window();
 
         self.connection().unmap_subwindows(focused_client)?;
         self.connection().unmap_window(focused_client)?;
@@ -807,11 +857,11 @@ impl State {
         let focused_workspace = self.get_focused_workspace_mut()?;
         let container = focused_workspace.remove_and_return_window(focused_client)?;
         self.get_focused_workspace_mut()?
-            .apply_layout(root_window, connection.clone())?;
+            .apply_layout(connection.clone(), None)?;
 
         if let Some(other_workspace) = self.workspace_with_id_mut(workspace_id) {
             other_workspace.insert_container(container)?;
-            other_workspace.apply_layout(root_window, connection)?;
+            other_workspace.apply_layout(connection, None)?;
         }
 
         Ok(())
@@ -819,29 +869,26 @@ impl State {
 
     fn action_change_layout(&mut self, layout: String) -> WmResult {
         let connection = self.connection();
-        let root_window = self.root_window();
 
         self.get_focused_workspace_mut()?.change_layout(layout)?;
         self.get_focused_workspace_mut()?
-            .apply_layout(root_window, connection)?;
+            .apply_layout(connection, None)?;
 
         Ok(())
     }
 
     fn action_cycle_layout(&mut self) -> WmResult {
         let connection = self.connection();
-        let root_window = self.root_window();
         let workspace = self.get_focused_workspace_mut()?;
 
         workspace.cycle_layout()?;
-        workspace.apply_layout(root_window, connection)?;
+        workspace.apply_layout(connection, None)?;
         Ok(())
     }
 
     fn action_toggle_float(&mut self) -> WmResult {
         let connection = self.connection();
-        let root_window = self.root_window();
-        let focused_client_id = match self.client_focus.focused_client() {
+        let focused_client_id = match self.get_focused_workspace_mut()?.focus.focused_client() {
             Some(c) => c,
             None => return Err("clinet focus error: there is no client currently in focus.".into()),
         };
@@ -859,7 +906,7 @@ impl State {
         connection
             .clone()
             .configure_window(focused_client_id, &window_config)?;
-        workspace.apply_layout(root_window, connection.clone())?;
+        workspace.apply_layout(connection.clone(), None)?;
         connection
             .clone()
             .set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;

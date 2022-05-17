@@ -51,7 +51,8 @@ impl StartHooks {
             let _ = std::process::Command::new("bash")
                 .arg("-c")
                 .args(hook.hook_args.as_slice())
-                .spawn()?.wait()?;
+                .spawn()?
+                .wait()?;
         }
         Ok(())
     }

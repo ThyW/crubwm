@@ -5,7 +5,7 @@ pub struct WorkspaceSettings {
     pub identifier: u32,
     pub name: String,
     pub allowed_layouts: Vec<String>,
-    pub output: String,
+    pub monitor: String,
     pub default_container_type: String,
 }
 
@@ -14,7 +14,7 @@ impl WorkspaceSettings {
         Self {
             identifier,
             name: format!("{}", identifier),
-            output: "".to_string(),
+            monitor: "".to_string(),
             allowed_layouts: vec!["all".to_string()],
             default_container_type: "tile".to_string(),
         }
@@ -28,8 +28,8 @@ impl WorkspaceSettings {
         self.allowed_layouts = allowed_layouts;
     }
 
-    pub fn with_output(&mut self, output: String) {
-        self.output = output;
+    pub fn with_monitor(&mut self, output: String) {
+        self.monitor = output;
     }
 
     pub fn with_default_container_type(&mut self, default_container_type: String) {
@@ -67,8 +67,8 @@ impl AllWorkspaceSettings {
             "name" => {
                 workspace.with_name(value[0].clone());
             }
-            "output" => {
-                workspace.with_output(value[0].clone());
+            "monitor" => {
+                workspace.with_monitor(value[0].clone());
             }
             "allowed_layouts" => workspace.with_allowed_layouts(value),
             "default_container_type" => {

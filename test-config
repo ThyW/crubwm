@@ -51,4 +51,4 @@ hook "startup" "notify-send 'hello world 2'"
 # workspace settings
 workspace_setting 1 name "hello_world"
 workspace_setting 1 allowed_layouts "all"
-workspace_setting 1 output "primary"
+workspace_setting 1 monitor "0"

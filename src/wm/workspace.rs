@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use x11rb::connection::Connection;
-use x11rb::protocol::randr::get_monitors;
-
+use super::focus_stack::FocusStack;
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
 use crate::errors::WmResult;
@@ -14,21 +12,29 @@ pub struct Workspace {
     containers: ContainerList,
     layout: LayoutType,
     allowed_layouts_mask: u64,
-    pub output: u32,
+    screen_size: Geometry,
     pub name: String,
     pub id: WorkspaceId,
+    pub focus: FocusStack,
 }
 
 impl Workspace {
     /// Create a new workspace.
-    pub fn new(name: String, id: WorkspaceId, allowed_layouts_mask: u64, output: u32) -> Self {
+    pub fn new(
+        name: String,
+        id: WorkspaceId,
+        allowed_layouts_mask: u64,
+        root_window: u32,
+        screen_size: Geometry,
+    ) -> Self {
         Self {
             containers: ContainerList::new(id),
             layout: LayoutType::default(),
             allowed_layouts_mask,
             name,
             id,
-            output,
+            focus: FocusStack::new(root_window),
+            screen_size,
         }
     }
 
@@ -117,12 +123,14 @@ impl Workspace {
     /// that the layout rules for the clients can be applied right away.
     pub fn apply_layout<C: x11rb::connection::Connection>(
         &mut self,
-        root: u32,
         connection: Rc<C>,
+        screen_size: Option<Geometry>,
     ) -> WmResult {
-        let screen = self.workspace_screen_size(connection.clone(), root)?;
-        self.layout
-            .apply(screen, self.containers.iter_in_layout_mut(), connection)
+        self.layout.apply(
+            screen_size.unwrap_or(self.screen_size),
+            self.containers.iter_in_layout_mut(),
+            connection,
+        )
     }
 
     /// Attempt to remove a `Container` with the given window id.
@@ -172,6 +180,7 @@ impl Workspace {
     }
 
     /// Returns an iterator over the `ContainerList`.
+    #[allow(unused)]
     pub fn iter_containers(&self) -> WmResult<std::collections::vec_deque::Iter<Container>> {
         Ok(self.containers.iter())
     }
@@ -184,31 +193,8 @@ impl Workspace {
         self.containers.container_insert_back(container)
     }
 
-    fn workspace_screen_size<C: Connection>(
-        &self,
-        connection: Rc<C>,
-        root_window: u32,
-    ) -> WmResult<Geometry> {
-        for monitor in get_monitors(connection.as_ref(), root_window, false)?
-            .reply()?
-            .monitors
-        {
-            if monitor.outputs.contains(&self.output) {
-                let mut geom = Geometry::default();
-                geom.x = monitor.x;
-                geom.y = monitor.y;
-                geom.width = monitor.width;
-                geom.height = monitor.height;
-
-                return Ok(geom);
-            }
-        }
-
-        Err(format!(
-            "workspace error: unable to return screen monitor size for output {}",
-            self.output
-        )
-        .into())
+    pub fn screen(&self) -> Geometry {
+        self.screen_size
     }
 }
 
