@@ -18,6 +18,7 @@ pub mod keyman;
 pub mod layouts;
 pub mod state;
 pub mod workspace;
+pub mod monitors;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");

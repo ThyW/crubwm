@@ -46,7 +46,6 @@ const ANY_KEY_MASK: u8 = 0;
 const ANY_MOD_KEY_MASK: u16 = 32768;
 const MIN_WIDTH: u16 = 160;
 const MIN_HEIGHT: u16 = 90;
-// TODO: make this a config setting
 const DRAG_SPEED_COEFFICIENT: f32 = 1.5;
 
 impl State {
@@ -210,7 +209,6 @@ impl State {
         self.connection.clone()
     }
 
-    // TODO: names and ids should be loaded from config.
     /// Handle the creation and initiation of workspaces.
     ///
     /// In the future, this method should be loading workspace names, ids and indices from the
@@ -229,7 +227,6 @@ impl State {
                 screen_size,
             ));
         }
-        println!("here");
         self.focus_workspace(self.workspaces[0].id)?;
 
         Ok(())
@@ -289,7 +286,11 @@ impl State {
 
         for ws in self.workspaces.iter() {
             let g = ws.screen();
-            if x >= g.x && x <= g.x + g.width as i16 && y >= g.y && y <= g.y + g.height as i16 {
+            if (x >= g.x)
+                && (x <= g.x + g.width as i16)
+                && (y >= g.y)
+                && (y <= g.y + g.height as i16)
+            {
                 return Ok(ws);
             }
         }
@@ -306,7 +307,11 @@ impl State {
 
         for ws in self.workspaces.iter_mut() {
             let g = ws.screen();
-            if x >= g.x && x <= g.x + g.width as i16 && y >= g.y && y <= g.y + g.height as i16 {
+            if (x >= g.x)
+                && (x <= g.x + g.width as i16)
+                && (y >= g.y)
+                && (y <= g.y + g.height as i16)
+            {
                 return Ok(ws);
             }
         }
