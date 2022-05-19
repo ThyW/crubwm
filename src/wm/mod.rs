@@ -16,9 +16,9 @@ pub mod focus_stack;
 pub mod geometry;
 pub mod keyman;
 pub mod layouts;
+pub mod monitors;
 pub mod state;
 pub mod workspace;
-pub mod monitors;
 
 fn print_help_message() {
     println!("crubwm is a tiling X window manager.\n");
@@ -47,7 +47,6 @@ impl Wm {
             true => None,
         };
 
-        println!("{:#?}", config.workspace_settings.get()[0]);
         let config = Rc::new(config);
 
         // create the state manager here.
@@ -111,7 +110,6 @@ impl Wm {
 
             Event::KeyRelease(e) => self.state.handle_key_release(&e)?,
             Event::MapRequest(e) => {
-                println!("map request");
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {

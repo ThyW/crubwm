@@ -150,7 +150,6 @@ impl ConfigParser {
         var.push('/');
         var.push_str(CONFIG_PATH);
         let mut path = var;
-        println!("{path}");
 
         // check whether a different config file should be loaded
         for command in commands {

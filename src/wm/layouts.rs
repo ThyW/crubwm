@@ -97,7 +97,6 @@ impl<'a> Layout<'a> for LayoutType {
     ) -> WmResult {
         match &self {
             Self::TilingEqualHorizontal => {
-                println!("horizontal");
                 let (len, iter) = cs;
                 if len == 0 {
                     return Ok(());
@@ -112,14 +111,14 @@ impl<'a> Layout<'a> for LayoutType {
                         ContainerType::Empty(g) => {
                             ii += 1;
                             g.y = screen.y;
-                            g.x = width as i16 * ii as i16;
+                            g.x = screen.x + (width as i16 * ii as i16);
                             g.width = width;
                             g.height = screen.height;
                         }
                         ContainerType::InLayout(c) => {
                             ii += 1;
+                            c.geometry.x = screen.x + (width as i16 * ii as i16);
                             c.geometry.y = screen.y;
-                            c.geometry.x = width as i16 * ii as i16;
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
                             let aux: ConfigureWindowAux = c.with_gaps().into();
@@ -132,7 +131,6 @@ impl<'a> Layout<'a> for LayoutType {
                 Ok(())
             }
             Self::TilingEqualVertical => {
-                println!("vertical");
                 let (len, iter) = cs;
                 if len == 0 {
                     return Ok(());
@@ -149,14 +147,14 @@ impl<'a> Layout<'a> for LayoutType {
                         ContainerType::Empty(g) => {
                             ii += 1;
                             g.x = screen.x;
-                            g.y = height as i16 * ii as i16;
+                            g.y = screen.y + height as i16 * ii as i16;
                             g.width = screen.width;
                             g.height = height;
                         }
                         ContainerType::InLayout(c) => {
                             ii += 1;
                             c.geometry.x = screen.x;
-                            c.geometry.y = height as i16 * ii as i16;
+                            c.geometry.y = screen.y + (height as i16 * ii as i16);
                             c.geometry.width = screen.width;
                             c.geometry.height = height;
                             connection.configure_window(c.window_id(), &c.with_gaps().into())?;
@@ -167,7 +165,6 @@ impl<'a> Layout<'a> for LayoutType {
                 Ok(())
             }
             Self::TilingMasterStack => {
-                println!("master stack");
                 let (len, iter) = cs;
                 if len == 0 {
                     return Ok(());
@@ -219,15 +216,15 @@ impl<'a> Layout<'a> for LayoutType {
                             ContainerType::InLayout(c) => {
                                 ii += 1;
                                 if ii == -1 {
-                                    c.geometry.x = 0;
-                                    c.geometry.y = 0;
+                                    c.geometry.x = screen.x;
+                                    c.geometry.y = screen.y;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = screen.height;
                                     connection
                                         .configure_window(c.window_id(), &c.with_gaps().into())?;
                                 } else {
-                                    c.geometry.x = width as i16 - 1;
-                                    c.geometry.y = height as i16 * ii;
+                                    c.geometry.x = screen.x + width as i16 - 1;
+                                    c.geometry.y = screen.y + height as i16 * ii;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = height;
                                     connection

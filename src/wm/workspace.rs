@@ -126,8 +126,9 @@ impl Workspace {
         connection: Rc<C>,
         screen_size: Option<Geometry>,
     ) -> WmResult {
+        let screen_size = screen_size.unwrap_or(self.screen_size);
         self.layout.apply(
-            screen_size.unwrap_or(self.screen_size),
+            screen_size,
             self.containers.iter_in_layout_mut(),
             connection,
         )

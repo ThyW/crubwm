@@ -1,5 +1,5 @@
 #![allow(unused)]
-use x11rb::protocol::randr::Output;
+use x11rb::protocol::randr::{MonitorInfo, Output};
 
 use crate::{
     errors::WmResult,
@@ -14,18 +14,31 @@ pub struct Monitor {
     id: MonitorId,
     outputs: Vec<Output>,
     workspaces: Vec<WorkspaceId>,
-    focused_workspace: Option<WorkspaceId>,
+    open_workspace: Option<WorkspaceId>,
+    focused: bool,
 }
 
 impl Monitor {
-    pub fn new(size: Geometry, id: MonitorId, outputs: Vec<Output>) -> Self {
+    fn new(size: Geometry, id: MonitorId, outputs: Vec<Output>) -> Self {
         Self {
             size,
             id,
             outputs,
             workspaces: Vec::new(),
-            focused_workspace: None,
+            open_workspace: None,
+            focused: false,
         }
+    }
+
+    pub fn from_monitor_info<I: Into<MonitorId>>(info: MonitorInfo, id: I) -> WmResult<Self> {
+        let mut size = Geometry::default();
+        size.x = info.x;
+        size.y = info.y;
+        size.width = info.width;
+        size.height = info.height;
+        let outputs = info.outputs.clone();
+
+        Ok(Self::new(size, id.into(), outputs))
     }
 
     pub fn add_workspace(&mut self, workspace: WorkspaceId) {
@@ -36,15 +49,48 @@ impl Monitor {
         self.workspaces.push(workspace)
     }
 
-    pub fn get_focused_workspace_id(&self) -> WmResult<WorkspaceId> {
-        if let Some(fw) = self.focused_workspace {
-            return Ok(fw);
+    pub fn get_open_workspace(&self) -> WmResult<WorkspaceId> {
+        if let Some(id) = self.open_workspace {
+            return Ok(id);
         }
 
-        Err("monitor: This monitor does not have any focused workspace.".into())
+        Err("This monitor does not have any open workspaces.".into())
     }
 
-    pub fn set_focused_workspace(&mut self, id: WorkspaceId) {
-        self.focused_workspace = Some(id)
+    pub fn set_open_workspace(&mut self, id: Option<WorkspaceId>) -> WmResult {
+        if let Some(new_id) = id {
+            if !self.contains(&new_id) {
+                return Err("This workspace is not located in on this monitor.".into());
+            }
+            self.open_workspace = Some(new_id);
+            Ok(())
+        } else {
+            if let Some(workspace_id) = self.workspaces.get(0) {
+                self.open_workspace = Some(*workspace_id);
+                Ok(())
+            } else {
+                Err("This monitor does not have any workspaces.".into())
+            }
+        }
+    }
+
+    pub fn is_focused(&self) -> bool {
+        self.focused
+    }
+
+    pub fn focus(&mut self, focus: bool) {
+        self.focused = focus;
+    }
+
+    pub fn size(&self) -> Geometry {
+        self.size
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
+    pub fn contains(&self, workspace: &u32) -> bool {
+        self.workspaces.contains(workspace)
     }
 }

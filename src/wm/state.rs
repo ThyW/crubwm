@@ -5,8 +5,8 @@ use x11rb::{
     protocol::{
         randr::get_monitors,
         xproto::{
-            AtomEnum, ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
-            EventMask, GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
+            ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask,
+            GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
         },
     },
     rust_connection::RustConnection,
@@ -22,6 +22,7 @@ use crate::{
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
     wm::layouts::LayoutMask,
+    wm::monitors::Monitor,
     wm::workspace::Workspaces,
     wm::workspace::{Workspace, WorkspaceId},
 };
@@ -36,10 +37,11 @@ pub struct State {
     focused_workspace: Option<WorkspaceId>,
     key_manager: KeyManager,
     last_client_id: ClientId,
-    atoms: HashMap<String, u32>,
+    _atoms: HashMap<String, u32>,
     is_dragging: bool,
     is_resizing: bool,
     config: Rc<Config>,
+    monitors: Vec<Monitor>,
 }
 
 const ANY_KEY_MASK: u8 = 0;
@@ -74,8 +76,7 @@ impl State {
                 | EventMask::ENTER_WINDOW
                 | EventMask::LEAVE_WINDOW
                 | EventMask::STRUCTURE_NOTIFY
-                | EventMask::PROPERTY_CHANGE
-                | EventMask::FOCUS_CHANGE,
+                | EventMask::PROPERTY_CHANGE,
         );
 
         let root_window = connection.setup().roots[screen_index as usize].root;
@@ -92,10 +93,11 @@ impl State {
             focused_workspace: None,
             key_manager: KeyManager::default(),
             last_client_id: 0,
-            atoms,
+            _atoms: atoms,
             is_dragging: false,
             is_resizing: false,
             config,
+            monitors: Vec::new(),
         })
     }
 
@@ -209,16 +211,18 @@ impl State {
         self.connection.clone()
     }
 
-    /// Handle the creation and initiation of workspaces.
+    /// Handle the creation and initialisation of workspaces.
     ///
     /// In the future, this method should be loading workspace names, ids and indices from the
     /// Config structure.
+    ///
+    /// This method is also responsible for the creation and setup of monitors.
     pub fn init_workspaces(&mut self) -> WmResult {
+        self.setup_monitors()?;
         for workspace_settings in self.config.workspace_settings.clone().into_iter() {
             let layout_mask = LayoutMask::from_slice(&workspace_settings.allowed_layouts)?;
-            let screen_size =
+            let (monitor_index, screen_size) =
                 self.get_screen_size_for_workspace(workspace_settings.monitor.clone())?;
-            println!("{}", screen_size);
             self.workspaces.push(Workspace::new(
                 workspace_settings.name.clone(),
                 workspace_settings.identifier,
@@ -226,32 +230,47 @@ impl State {
                 self.root_window(),
                 screen_size,
             ));
+            self.monitors[monitor_index].add_workspace(workspace_settings.identifier)
         }
+        for monitor in self.monitors.iter_mut() {
+            if let Err(e) = monitor.set_open_workspace(None) {
+                eprintln!("{}", e)
+            }
+        }
+
         self.focus_workspace(self.workspaces[0].id)?;
 
         Ok(())
     }
 
-    /// Helper function to determine which output id should go to witch worksapce.
-    fn get_screen_size_for_workspace(&self, monitor_number_string: String) -> WmResult<Geometry> {
+    /// Helper function to determine which output id should go to which worksapce.
+    fn get_screen_size_for_workspace(
+        &self,
+        monitor_number_string: String,
+    ) -> WmResult<(usize, Geometry)> {
         // TODO: if this fails a warning should be returned.
         let monitor_number = monitor_number_string.parse::<usize>().unwrap_or(0);
 
-        let monitors = get_monitors(self.connection().as_ref(), self.root_window(), false)?
-            .reply()?
-            .monitors
-            .clone();
-
-        if let Some(monitor) = monitors.get(monitor_number) {
-            let mut geometry = Geometry::default();
-            geometry.x = monitor.x;
-            geometry.y = monitor.y;
-            geometry.width = monitor.width;
-            geometry.height = monitor.height;
-            return Ok(geometry);
+        if let Some(monitor) = self.monitors.get(monitor_number) {
+            return Ok((monitor_number, monitor.size()));
         }
 
         Err(format!("worksapce error: unable to construct workspace: monitor with index {monitor_number_string} not found.").into())
+    }
+
+    /// Create and setup monitors for workspaces.
+    fn setup_monitors(&mut self) -> WmResult {
+        let monitor_reply =
+            get_monitors(self.connection().as_ref(), self.root_window(), false)?.reply()?;
+        let mut current_monitor_id = 0u32;
+
+        for monitor_info in monitor_reply.monitors {
+            current_monitor_id += 1;
+            let monitor = Monitor::from_monitor_info(monitor_info, current_monitor_id)?;
+            self.monitors.push(monitor)
+        }
+
+        Ok(())
     }
 
     /// Get a reference to the focused workspace.
@@ -276,42 +295,31 @@ impl State {
         Err("focused workspace could not be found".into())
     }
 
-    #[allow(unused)]
-    fn get_workspace_under_cursor(&self) -> WmResult<&Workspace> {
-        let cursor = self
-            .connection()
-            .query_pointer(self.root_window())?
-            .reply()?;
-        let (x, y) = (cursor.root_x, cursor.root_y);
-
-        for ws in self.workspaces.iter() {
-            let g = ws.screen();
-            if (x >= g.x)
-                && (x <= g.x + g.width as i16)
-                && (y >= g.y)
-                && (y <= g.y + g.height as i16)
-            {
-                return Ok(ws);
-            }
-        }
-
-        Err("cursor is not in any workspace currently!".into())
-    }
-
+    /// Return a mutable reference to the currently open workspace on a monitor which the cursor is
+    /// on.
     fn get_workspace_under_cursor_mut(&mut self) -> WmResult<&mut Workspace> {
         let cursor = self
             .connection()
             .query_pointer(self.root_window())?
             .reply()?;
         let (x, y) = (cursor.root_x, cursor.root_y);
+        let mons = self.monitors.clone();
+        let mut id = None;
 
-        for ws in self.workspaces.iter_mut() {
-            let g = ws.screen();
+        for monitor in mons.iter() {
+            let g = monitor.size();
             if (x >= g.x)
                 && (x <= g.x + g.width as i16)
                 && (y >= g.y)
                 && (y <= g.y + g.height as i16)
             {
+                id = Some(monitor.get_open_workspace()?);
+                break;
+            }
+        }
+
+        if let Some(id) = id {
+            if let Some(ws) = self.workspace_with_id_mut(id) {
                 return Ok(ws);
             }
         }
@@ -319,35 +327,158 @@ impl State {
         Err("cursor is not in any workspace currently!".into())
     }
 
+    /// Focus a workspace.
     pub fn focus_workspace(&mut self, workspace_id: WorkspaceId) -> WmResult {
+        // 1. find the currently focused monitor and workspace
+        //
+        // 2. find the monitor of the 'to be' focused workspace
+        //
+        // 3.A. if the two workspaces are on the same monitor, unmap one, map the other, set the
+        //      newly focused workspace as the monitor's open workspace.
+        // 3.B. if the two workspaces are not on the same monitor:
+        //      3.B.1 if the 'to be' focused workspace is open on the other monitor, do nothing and
+        //            just focus the next workspace and set the monitor to be focused.
+        //      3.B.2 if the 'to be' focused workspace is not open on the other monitor, unmap
+        //            the old workspace, map the new one and set give the monitor the focus.
         if workspace_id == self.focused_workspace.unwrap_or(0) {
             return Ok(());
         }
-        let workspace = self.workspace_with_id(workspace_id).ok_or_else(|| {
-            crate::errors::Error::Generic(format!(
-                "workspace error: unable to find workspace with id {workspace_id}"
-            ))
-        })?;
-        if let Some(current_workspace_id) = self.focused_workspace {
-            if let Some(current_workspace) = self.workspace_with_id(current_workspace_id) {
-                for each in current_workspace.iter_containers()? {
-                    if let Some(wid) = each.data().window_id() {
+        let current_focused_monitor_id = self.get_focused_or_first_monitor()?.id();
+        let new_focused_monitor_id = self.monitor_for_workspace_mut(workspace_id)?.id();
+
+        // variant A
+        if current_focused_monitor_id == new_focused_monitor_id {
+            if let Ok(focused_workspace) = self.get_focused_workspace() {
+                for container in focused_workspace.iter_containers()? {
+                    if let Some(wid) = container.data().window_id() {
                         self.connection().unmap_subwindows(wid)?;
                         self.connection().unmap_window(wid)?;
                     }
                 }
             }
-        }
 
-        for container in workspace.iter_containers()? {
-            if let Some(window) = container.data().window_id() {
-                self.connection().map_window(window)?;
+            let workspace = self
+                .workspace_with_id(workspace_id)
+                .ok_or_else(|| Error::Generic("No workspace with given id exists".into()))?;
+
+            for container in workspace.iter_containers()? {
+                if let Some(wid) = container.data().window_id() {
+                    self.connection().map_window(wid)?;
+                    self.connection().map_subwindows(wid)?;
+                }
+            }
+
+            self.monitor_with_id_mut(current_focused_monitor_id)?
+                .set_open_workspace(Some(workspace_id))?;
+            self.monitor_with_id_mut(current_focused_monitor_id)?
+                .focus(true);
+            self.focused_workspace = Some(workspace_id);
+        } else {
+            // variant B
+            let open_workspace_id = self
+                .monitor_with_id_mut(new_focused_monitor_id)?
+                .get_open_workspace()?;
+
+            // variant B.1.
+            if open_workspace_id == workspace_id {
+                self.monitor_with_id_mut(new_focused_monitor_id)?
+                    .focus(true);
+                self.monitor_with_id_mut(current_focused_monitor_id)?
+                    .focus(false);
+                self.focused_workspace = Some(workspace_id);
+            } else {
+                // variant B.2.
+                if let Some(focused_workspace) = self.workspace_with_id(open_workspace_id) {
+                    for container in focused_workspace.iter_containers()? {
+                        if let Some(wid) = container.data().window_id() {
+                            self.connection().unmap_subwindows(wid)?;
+                            self.connection().unmap_window(wid)?;
+                        }
+                    }
+                }
+
+                let workspace = self
+                    .workspace_with_id(workspace_id)
+                    .ok_or_else(|| Error::Generic("No workspace with given id exists".into()))?;
+
+                for container in workspace.iter_containers()? {
+                    if let Some(wid) = container.data().window_id() {
+                        self.connection().map_window(wid)?;
+                        self.connection().map_subwindows(wid)?;
+                    }
+                }
+                let monitor = self.monitor_with_id_mut(new_focused_monitor_id)?;
+                monitor.focus(true);
+                monitor.set_open_workspace(Some(workspace_id))?;
+                self.monitor_with_id_mut(current_focused_monitor_id)?
+                    .focus(false);
+                self.focused_workspace = Some(workspace_id);
             }
         }
 
-        self.focused_workspace = Some(workspace_id);
+        let workspace = self.get_focused_workspace()?;
+        let size = workspace.screen();
+
+        self.connection().warp_pointer(
+            NONE,
+            self.root_window(),
+            0,
+            0,
+            0,
+            0,
+            size.x + (size.width / 2) as i16,
+            size.y + (size.height / 2) as i16,
+        )?;
 
         Ok(())
+    }
+
+    /// If there is a focused monitor, return a reference to it, otherwsie return a reference
+    /// to the first monitor.
+    fn get_focused_or_first_monitor(&self) -> WmResult<&Monitor> {
+        if let Ok(monitor) = self.get_focused_monitor() {
+            return Ok(monitor);
+        } else {
+            if let Some(monitor) = self.monitors.get(0) {
+                return Ok(monitor);
+            }
+        }
+
+        return Err("There are currently no monitors available for this X display.".into());
+    }
+
+    /// Return a reference to the currently focused monitor.
+    fn get_focused_monitor(&self) -> WmResult<&Monitor> {
+        for monitor in self.monitors.iter() {
+            if monitor.is_focused() {
+                return Ok(monitor);
+            }
+        }
+
+        Err("There are no currently focused monitors.".into())
+    }
+
+    /// Retrun a mutable reference to the monitor which the workspace with the given id is
+    /// currently on.
+    fn monitor_for_workspace_mut(&mut self, workspace_id: WorkspaceId) -> WmResult<&mut Monitor> {
+        for monitor in self.monitors.iter_mut() {
+            if monitor.contains(&workspace_id) {
+                return Ok(monitor);
+            }
+        }
+
+        Err("Workspace is not located in any monitor.".into())
+    }
+
+    /// Return a mutable reference to the monitor given its id.
+    fn monitor_with_id_mut(&mut self, id: u32) -> WmResult<&mut Monitor> {
+        for monitor in self.monitors.iter_mut() {
+            if monitor.id() == id {
+                return Ok(monitor);
+            }
+        }
+
+        Err(format!("No monitor with id {} found.", id).into())
     }
 
     /// Become a window manager, take control of all open windows on the X server.
@@ -387,6 +518,7 @@ impl State {
             Client::new_without_process_id(window, geometry, new_client_id, &config),
             CT_MASK_TILING,
         );
+
         let old_event_mask = self
             .connection()
             .get_window_attributes(window)?
@@ -434,7 +566,7 @@ impl State {
             .apply_layout(connection, None)?;
 
         self.connection()
-            .set_input_focus(InputFocus::NONE, window, CURRENT_TIME)?;
+            .set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)?;
         self.get_focused_workspace_mut()?
             .focus
             .set_focused_client(window);
@@ -770,39 +902,7 @@ impl State {
 
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
-            if let Some(workspace) = self.workspace_for_window(window) {
-                if let Ok(container) = workspace.find_by_window_id(window) {
-                    if let Some(process_id) = container.data().process_id() {
-                        if process_id != 0 {
-                            let pid = format!("{process_id}");
-                            std::process::Command::new("kill").arg(pid).spawn()?;
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-
-            let process_id_reply = self
-                .connection()
-                .get_property(
-                    false,
-                    window,
-                    *self.atoms.get("_NET_WM_PID").unwrap(),
-                    AtomEnum::CARDINAL,
-                    0,
-                    1,
-                )?
-                .reply()?;
-
-            if process_id_reply.value_len != 0 && process_id_reply.format == 32 {
-                let process_id = process_id_reply.value32().unwrap().collect::<Vec<u32>>()[0];
-                #[cfg(debug_assertions)]
-                println!("killing {process_id}");
-                std::process::Command::new("kill")
-                    .arg(format!("{process_id}"))
-                    .spawn()?;
-                return Ok(());
-            }
+            self.connection().kill_client(window)?;
 
             self.connection().destroy_subwindows(window)?;
             self.connection().destroy_window(window)?;
@@ -828,7 +928,7 @@ impl State {
             if let Some(container_to_focus) = container_to_focus_option {
                 if let Some(window_to_focus) = container_to_focus?.data().window_id() {
                     connection.set_input_focus(
-                        InputFocus::NONE,
+                        InputFocus::PARENT,
                         window_to_focus,
                         x11rb::CURRENT_TIME,
                     )?;
