@@ -83,10 +83,6 @@ impl AllWorkspaceSettings {
         }
         Ok(())
     }
-
-    pub fn get(&self) -> &Vec<WorkspaceSettings> {
-        &self.0
-    }
 }
 
 impl IntoIterator for AllWorkspaceSettings {

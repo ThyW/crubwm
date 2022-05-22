@@ -5,26 +5,7 @@ pub struct Keybinds(Vec<Keybind>);
 
 impl Default for Keybinds {
     fn default() -> Self {
-        let default_binds = vec![
-            Keybind::new(vec![Key::Mod, Key::KeyQ], Action::Kill),
-            Keybind::new(
-                vec![Key::Mod, Key::KeyL],
-                Action::Focus("left".try_into().unwrap()),
-            ),
-            Keybind::new(
-                vec![Key::Mod, Key::KeyH],
-                Action::Focus("right".try_into().unwrap()),
-            ),
-            Keybind::new(
-                vec![Key::Mod, Key::KeyJ],
-                Action::Focus("down".try_into().unwrap()),
-            ),
-            Keybind::new(
-                vec![Key::Mod, Key::KeyK],
-                Action::Focus("up".try_into().unwrap()),
-            ),
-            Keybind::new(vec![Key::Mod, Key::Enter], Action::Execute("xterm".into())),
-        ];
+        let default_binds = vec![];
         Self(default_binds)
     }
 }
@@ -416,10 +397,6 @@ pub struct Keybind {
 }
 
 impl Keybind {
-    fn new(keys: Vec<Key>, action: Action) -> Self {
-        Self { keys, action }
-    }
-
     fn from(str_keys: String, str_action: String) -> WmResult<Self> {
         let keys = Keybind::parse_keys(str_keys)?;
         let action = Keybind::parse_action(str_action)?;
