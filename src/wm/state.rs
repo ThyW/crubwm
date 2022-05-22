@@ -864,6 +864,7 @@ impl State {
             Action::ChangeLayout(layout) => self.action_change_layout(layout)?,
             Action::CycleLayout => self.action_cycle_layout()?,
             Action::ToggleFloat => self.action_toggle_float()?,
+            Action::Swap(direction) => self.action_swap(direction)?,
         }
 
         Ok(())
@@ -919,10 +920,8 @@ impl State {
             let container_id = container.id();
 
             let container_to_focus_option = match direction {
-                Direction::Right => Some(workspace.next_container(*container_id)),
-                Direction::Left => Some(workspace.previous_container(*container_id)),
-                Direction::Up => Some(workspace.previous_container(*container_id)),
-                Direction::Down => Some(workspace.next_container(*container_id)),
+                Direction::Next => Some(workspace.next_container(*container_id)),
+                Direction::Previous => Some(workspace.previous_container(*container_id)),
             };
 
             if let Some(container_to_focus) = container_to_focus_option {
@@ -1016,6 +1015,28 @@ impl State {
             .clone()
             .set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
+
+        Ok(())
+    }
+
+    fn action_swap(&mut self, direction: Direction) -> WmResult {
+        let connection = self.connection();
+        if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
+            let workspace = self.get_focused_workspace_mut()?;
+            let container = workspace.find_by_window_id(window)?;
+            let container_id = container.id();
+
+            let container_to_focus_option = match direction {
+                Direction::Next => Some(workspace.next_container(*container_id)),
+                Direction::Previous => Some(workspace.previous_container(*container_id)),
+            };
+
+            if let Some(container_to_focus) = container_to_focus_option {
+                let swap_with = container_to_focus?.id();
+                workspace.swap(*container_id, *swap_with)?;
+                workspace.apply_layout(connection.clone(), None)?;
+            }
+        }
 
         Ok(())
     }

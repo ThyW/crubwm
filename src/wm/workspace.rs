@@ -197,6 +197,11 @@ impl Workspace {
     pub fn screen(&self) -> Geometry {
         self.screen_size
     }
+
+    pub fn swap<I: Into<ContainerId>>(&mut self, a: I, b: I) -> WmResult {
+        self.containers.swap(a, b)?;
+        Ok(())
+    }
 }
 
 pub type WorkspaceId = u32;

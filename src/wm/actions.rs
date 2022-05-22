@@ -2,10 +2,8 @@ use crate::errors::{Error, WmResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
+    Next,
+    Previous,
 }
 
 impl TryFrom<&str> for Direction {
@@ -13,10 +11,8 @@ impl TryFrom<&str> for Direction {
 
     fn try_from(s: &str) -> WmResult<Self> {
         let direction = match s {
-            "up" => Self::Up,
-            "down" => Self::Down,
-            "left" => Self::Left,
-            "right" => Self::Right,
+            "next" => Self::Next,
+            "previous" => Self::Previous,
             _ => return Err("not a valid direction".into()),
         };
 
@@ -46,6 +42,7 @@ pub enum Action {
     CycleLayout,
     /// Toggle the currently focused window in and out of floating.
     ToggleFloat,
+    Swap(Direction)
 }
 
 impl Action {
@@ -143,6 +140,26 @@ impl Action {
                 }
                 "cycle_layout" => Action::CycleLayout,
                 "toggle_float" => Action::ToggleFloat,
+                "swap" => {
+                    let rest = &parts[1..];
+                    if rest.len() > 1 {
+                        return Err(format!(
+                            "action parsing error: Action takes exactly one argument {s}"
+                        )
+                        .into());
+                    } else {
+                        let direction = rest[0].try_into();
+                        if let Ok(dir) = direction {
+                            Action::Swap(dir)
+                        } else {
+                            return Err(format!(
+                                "action paring error: Argument must be a number {s}"
+                            )
+                            .into());
+                        }
+                    }
+
+                }
                 a => return Err(format!("action parsing error: Unknown action {a}!").into()),
             };
 
