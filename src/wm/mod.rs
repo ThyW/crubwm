@@ -125,6 +125,9 @@ impl Wm {
             Event::ButtonRelease(e) => {
                 self.state.handle_button_release(&e)?;
             }
+            Event::FocusIn(e) => {
+                self.state.handle_focus_in(&e)?;
+            }
             Event::ClientMessage(_e) => {
                 #[cfg(debug_assertions)]
                 println!("client message: {}", _e.window);

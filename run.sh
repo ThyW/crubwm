@@ -2,7 +2,6 @@
 
 # make sure that every other Xephyr and window manager instance is killed before running
 killall Xephyr
-killall crubwm
 
 # exit on first error
 set -e
@@ -31,9 +30,11 @@ else
     wm=$!
 fi
 
+echo $wm
+
 # run a new bash instance
 bash
-xsetroot -solid "#ffffff"
+xsetroot -solid '#222222'
 
 # kill everything at the end
 kill -9 "${wm}"

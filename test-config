@@ -45,8 +45,9 @@ option "gap_left_size" 4
 option "gap_right_size" 4
 
 # hooks
-hook "startup" "notify-send 'hello world'"
-hook "startup" "notify-send 'hello world 2'"
+hook "startup" sync "notify-send 'hello world'"
+hook "startup" sync "notify-send 'hello world 2'"
+hook "startup" async "redshift"
 
 # workspace settings
 workspace_setting 1 name "hello_world"

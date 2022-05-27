@@ -1,12 +1,80 @@
-use crate::{errors::WmResult, wm::actions::Action};
+use crate::{
+    config::Repr,
+    errors::WmResult,
+    wm::actions::{Action, Direction},
+};
 
 #[derive(Debug, Clone)]
 pub struct Keybinds(Vec<Keybind>);
 
 impl Default for Keybinds {
     fn default() -> Self {
-        let default_binds = vec![];
+        let default_binds = vec![
+            Keybind::new(
+                vec![Key::Mod, Key::Enter],
+                Action::Execute("xterm".to_string()),
+            ),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::KeyQ], Action::Kill),
+            Keybind::new(vec![Key::Mod, Key::Key1], Action::Goto(1)),
+            Keybind::new(vec![Key::Mod, Key::Key2], Action::Goto(2)),
+            Keybind::new(vec![Key::Mod, Key::Key3], Action::Goto(3)),
+            Keybind::new(vec![Key::Mod, Key::Key4], Action::Goto(4)),
+            Keybind::new(vec![Key::Mod, Key::Key5], Action::Goto(5)),
+            Keybind::new(vec![Key::Mod, Key::Key6], Action::Goto(6)),
+            Keybind::new(vec![Key::Mod, Key::Key7], Action::Goto(7)),
+            Keybind::new(vec![Key::Mod, Key::Key8], Action::Goto(8)),
+            Keybind::new(vec![Key::Mod, Key::Key9], Action::Goto(9)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key1], Action::Move(1)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key2], Action::Move(2)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key3], Action::Move(3)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key4], Action::Move(4)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key5], Action::Move(5)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key6], Action::Move(6)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key7], Action::Move(7)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key8], Action::Move(8)),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::Key9], Action::Move(9)),
+            Keybind::new(vec![Key::Mod, Key::KeyL], Action::Focus(Direction::Next)),
+            Keybind::new(vec![Key::Mod, Key::KeyH], Action::Focus(Direction::Next)),
+            Keybind::new(
+                vec![Key::Mod, Key::LShift, Key::KeyL],
+                Action::Swap(Direction::Next),
+            ),
+            Keybind::new(
+                vec![Key::Mod, Key::LShift, Key::KeyH],
+                Action::Swap(Direction::Next),
+            ),
+            Keybind::new(vec![Key::Mod, Key::KeyS], Action::CycleLayout),
+            Keybind::new(vec![Key::Mod, Key::Space], Action::ToggleFloat),
+        ];
         Self(default_binds)
+    }
+}
+
+impl Repr for Keybinds {
+    fn repr(&self) -> WmResult<String> {
+        let mut return_string = String::new();
+
+        for keybind in self.0.iter() {
+            return_string.push_str("keybind ");
+            for (ii, key) in keybind.keys.iter().enumerate() {
+                if ii == 0 {
+                    return_string.push('"');
+                }
+
+                if key.is_special() {
+                    return_string.push_str(&format!("<{}>", key.get_x11_str().to_string()));
+                } else {
+                    return_string.push_str(key.get_x11_str())
+                }
+            }
+
+            return_string.push('"');
+
+            return_string.push_str(&format!(" {}", keybind.action.repr()?));
+            return_string.push('\n');
+        }
+
+        Ok(return_string)
     }
 }
 
@@ -164,6 +232,13 @@ impl Key {
         }
 
         Ok(ret)
+    }
+
+    fn is_special(&self) -> bool {
+        if self.get_x11_str().len() > 1 {
+            return true;
+        }
+        false
     }
 
     pub fn get_x11_str(&self) -> &'_ str {
@@ -397,6 +472,9 @@ pub struct Keybind {
 }
 
 impl Keybind {
+    fn new(keys: Vec<Key>, action: Action) -> Self {
+        Self { keys, action }
+    }
     fn from(str_keys: String, str_action: String) -> WmResult<Self> {
         let keys = Keybind::parse_keys(str_keys)?;
         let action = Keybind::parse_action(str_action)?;
@@ -456,8 +534,11 @@ impl Keybind {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::Repr;
+
     use super::Key;
     use super::Keybind;
+    use super::Keybinds;
 
     #[test]
     fn test_keybind_parsing() {
@@ -479,5 +560,12 @@ mod tests {
         let key = Key::from_str(keysym.name().as_str()).unwrap();
 
         assert_eq!(Key::Key8, key);
+    }
+
+    #[test]
+    fn test_repr() {
+        let keybinds = Keybinds::default();
+
+        println!("{}", keybinds.repr().unwrap())
     }
 }

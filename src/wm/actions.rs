@@ -1,9 +1,21 @@
-use crate::errors::{Error, WmResult};
+use crate::{
+    config::Repr,
+    errors::{Error, WmResult},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Next,
     Previous,
+}
+
+impl Repr for Direction {
+    fn repr(&self) -> WmResult<String> {
+        match &self {
+            Self::Next => Ok("next".to_string()),
+            Self::Previous => Ok("previous".to_string()),
+        }
+    }
 }
 
 impl TryFrom<&str> for Direction {
@@ -42,7 +54,7 @@ pub enum Action {
     CycleLayout,
     /// Toggle the currently focused window in and out of floating.
     ToggleFloat,
-    Swap(Direction)
+    Swap(Direction),
 }
 
 impl Action {
@@ -158,12 +170,40 @@ impl Action {
                             .into());
                         }
                     }
-
                 }
                 a => return Err(format!("action parsing error: Unknown action {a}!").into()),
             };
 
             Ok(action)
         }
+    }
+}
+
+impl Repr for Action {
+    fn repr(&self) -> WmResult<String> {
+        match self {
+            &Self::Goto(workspace) => Ok(format!("goto {workspace}")),
+            &Self::Noop => Ok("noop".to_string()),
+            &Self::Kill => Ok("kill".to_string()),
+            Self::Execute(command) => Ok(format!("execute {command}")),
+            &Self::Move(workspace) => Ok(format!("move {workspace}")),
+            &Self::Focus(direction) => Ok(format!("focus {}", direction.repr()?)),
+            &Self::ToggleFloat => Ok("toggle_float".to_string()),
+            &Self::CycleLayout => Ok("cycle_layout".to_string()),
+            Self::ChangeLayout(name) => Ok(format!("change_layout {name}")),
+            &Self::Swap(direction) => Ok(format!("swap {}", direction.repr()?)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn direction_repr() {
+        let dir = super::Direction::Next;
+        let str = dir.repr();
+
+        assert_eq!(str.unwrap(), "next".to_string());
     }
 }

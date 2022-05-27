@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::fs::read_to_string;
+use std::io::Write;
 
 use crate::config::Config;
 use crate::errors::Error;
@@ -144,12 +145,12 @@ impl ConfigParser {
     /// `~/.config/crubwm/config`.
     pub fn parse(commands: &Vec<Command>) -> WmResult<Config> {
         let mut ret = Config::default();
-        let mut var = std::env::var("HOME").map_err(|_| {
+        let mut default_path = std::env::var("HOME").map_err(|_| {
             Error::Generic("parsing error: unable to read $HOME environmental variable.".into())
         })?;
-        var.push('/');
-        var.push_str(CONFIG_PATH);
-        let mut path = var;
+        default_path.push('/');
+        default_path.push_str(CONFIG_PATH);
+        let mut path = default_path.clone();
 
         // check whether a different config file should be loaded
         for command in commands {
@@ -158,6 +159,12 @@ impl ConfigParser {
             } else if command.get_type() == &CommandType::Help {
                 return Ok(ret);
             }
+        }
+
+        if !std::path::PathBuf::from(&default_path).exists() {
+            let mut new_config_file = std::fs::File::create(default_path)?;
+
+            new_config_file.write(ret.serialize()?)?;
         }
 
         let file_contents = read_to_string(path)?;
@@ -179,8 +186,9 @@ impl ConfigParser {
                     ConfigLine::Hook {
                         hook_type,
                         hook_args,
+                        hook_option,
                     } => {
-                        ret.start_hooks.add(hook_type, hook_args)?;
+                        ret.start_hooks.add(hook_type, hook_args, hook_option)?;
                     }
                     ConfigLine::Option {
                         option_name,
@@ -228,6 +236,8 @@ enum ConfigLine {
         hook_type: String,
         /// Arguments of the hooks
         hook_args: Vec<String>,
+        /// Type of the hook
+        hook_option: String,
     },
     /// An option line which represents a single setting such as window border color
     Option {
@@ -272,7 +282,8 @@ impl TryFrom<String> for ConfigLine {
 
             return Ok(Self::Hook {
                 hook_type: parser.0[0].clone(),
-                hook_args: parser.0[1..].to_vec(),
+                hook_option: parser.0[1].clone(),
+                hook_args: parser.0[2..].to_vec(),
             });
         } else if let Some(s) = line.strip_prefix("workspace_setting") {
             let rest_of_line = s;

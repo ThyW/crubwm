@@ -1,5 +1,7 @@
 use crate::errors::{Error, WmResult};
 
+use super::Repr;
+
 #[derive(Clone, Debug)]
 pub struct WorkspaceSettings {
     pub identifier: u32,
@@ -49,6 +51,12 @@ impl Default for AllWorkspaceSettings {
         }
 
         Self(ret)
+    }
+}
+
+impl Repr for AllWorkspaceSettings {
+    fn repr(&self) -> WmResult<String> {
+        Ok("self".to_string())
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::config::Repr;
 use crate::errors::WmResult;
 
 #[derive(Debug)]
@@ -265,6 +266,12 @@ impl Options {
         let blue = u32::from_str_radix(&nums[4..=5], 16).unwrap_or(0);
 
         255 << 24 | (red << 16) | (green << 8) | blue
+    }
+}
+
+impl Repr for Options {
+    fn repr(&self) -> WmResult<String> {
+        Ok("world".to_string())
     }
 }
 

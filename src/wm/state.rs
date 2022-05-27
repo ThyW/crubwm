@@ -6,7 +6,7 @@ use x11rb::{
         randr::get_monitors,
         xproto::{
             ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask,
-            GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
+            FocusInEvent, GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
         },
     },
     rust_connection::RustConnection,
@@ -238,7 +238,7 @@ impl State {
             }
         }
 
-        self.focus_workspace(self.workspaces[0].id)?;
+        self.focus_workspace(self.workspaces[0].id, true)?;
 
         Ok(())
     }
@@ -328,7 +328,7 @@ impl State {
     }
 
     /// Focus a workspace.
-    pub fn focus_workspace(&mut self, workspace_id: WorkspaceId) -> WmResult {
+    pub fn focus_workspace(&mut self, workspace_id: WorkspaceId, warp_pointer: bool) -> WmResult {
         // 1. find the currently focused monitor and workspace
         //
         // 2. find the monitor of the 'to be' focused workspace
@@ -419,16 +419,18 @@ impl State {
         let workspace = self.get_focused_workspace()?;
         let size = workspace.screen();
 
-        self.connection().warp_pointer(
-            NONE,
-            self.root_window(),
-            0,
-            0,
-            0,
-            0,
-            size.x + (size.width / 2) as i16,
-            size.y + (size.height / 2) as i16,
-        )?;
+        if warp_pointer {
+            self.connection().warp_pointer(
+                NONE,
+                self.root_window(),
+                0,
+                0,
+                0,
+                0,
+                size.x + (size.width / 2) as i16,
+                size.y + (size.height / 2) as i16,
+            )?;
+        }
 
         Ok(())
     }
@@ -512,7 +514,7 @@ impl State {
 
         let workspace = self.get_workspace_under_cursor_mut()?;
         let id = workspace.id;
-        self.focus_workspace(id)?;
+        self.focus_workspace(id, false)?;
 
         self.get_focused_workspace_mut()?.insert_client(
             Client::new_without_process_id(window, geometry, new_client_id, &config),
@@ -658,7 +660,7 @@ impl State {
             id = workspace.id
         }
 
-        self.focus_workspace(id)?;
+        self.focus_workspace(id, false)?;
         self.get_focused_workspace_mut()?
             .focus
             .set_focused_client(window);
@@ -852,6 +854,17 @@ impl State {
         Ok(())
     }
 
+    pub fn handle_focus_in(&mut self, ev: &FocusInEvent) -> WmResult {
+        let connection = self.connection();
+        if let Some(workspace) = self.workspace_for_window_mut(ev.event) {
+            if let Some(focused) = workspace.focus.focused_client() {
+                connection.set_input_focus(InputFocus::PARENT, focused, CURRENT_TIME)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Handle the execution of a given action.
     fn do_action(&mut self, action: Action) -> WmResult {
         match action {
@@ -940,7 +953,7 @@ impl State {
     }
 
     fn action_goto(&mut self, workspace_id: WorkspaceId) -> WmResult {
-        self.focus_workspace(workspace_id)?;
+        self.focus_workspace(workspace_id, true)?;
 
         Ok(())
     }
@@ -954,6 +967,14 @@ impl State {
             .focus
             .focused_client()
             .ok_or_else(|| Error::Generic("move error: no focused client".into()))?;
+        let workspace_id = self
+            .workspace_with_id(workspace_id)
+            .ok_or_else(|| {
+                Error::Generic(format!(
+                    "move error: no workspace with id {workspace_id} found"
+                ))
+            })?
+            .id;
 
         self.connection().unmap_subwindows(focused_client)?;
         self.connection().unmap_window(focused_client)?;
@@ -963,9 +984,14 @@ impl State {
         self.get_focused_workspace_mut()?
             .apply_layout(connection.clone(), None)?;
 
-        if let Some(other_workspace) = self.workspace_with_id_mut(workspace_id) {
-            other_workspace.insert_container(container)?;
-            other_workspace.apply_layout(connection, None)?;
+        let other_workspace = self.workspace_with_id_mut(workspace_id).unwrap();
+        other_workspace.insert_container(container)?;
+        other_workspace.apply_layout(connection, None)?;
+
+        let monitor = self.monitor_for_workspace_mut(workspace_id)?;
+        if monitor.get_open_workspace()? == workspace_id {
+            self.connection().map_window(focused_client)?;
+            self.connection().map_subwindows(focused_client)?;
         }
 
         Ok(())
