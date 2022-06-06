@@ -934,13 +934,25 @@ impl State {
             };
 
             if let Some(container_to_focus) = container_to_focus_option {
-                if let Some(window_to_focus) = container_to_focus?.data().window_id() {
+                let container = container_to_focus?.data();
+                let size = container.geometry();
+                if let Some(window_to_focus) = container.window_id() {
                     connection.set_input_focus(
                         InputFocus::PARENT,
                         window_to_focus,
                         x11rb::CURRENT_TIME,
                     )?;
                     workspace.focus.set_focused_client(window_to_focus);
+                    self.connection().warp_pointer(
+                        NONE,
+                        self.root_window(),
+                        0,
+                        0,
+                        0,
+                        0,
+                        size.x + (size.width / 2) as i16,
+                        size.y + (size.height / 2) as i16,
+                    )?;
                 }
             }
         }
