@@ -164,7 +164,7 @@ impl ConfigParser {
         if !std::path::PathBuf::from(&default_path).exists() {
             let mut new_config_file = std::fs::File::create(default_path)?;
 
-            new_config_file.write(ret.serialize()?)?;
+            new_config_file.write_all(ret.serialize()?)?;
         }
 
         let file_contents = read_to_string(path)?;

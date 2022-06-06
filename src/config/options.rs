@@ -1,9 +1,7 @@
 use crate::config::Repr;
 use crate::errors::WmResult;
 
-#[derive(Debug)]
-#[allow(unused)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Options {
     /// Should a window border be shown on the given side of the window?
     ///
@@ -250,11 +248,12 @@ impl Options {
         ret
     }
 
+    /// Convert a string representing a hex color into a 32-bit RGBA number.
     pub fn convert_border_color(&self) -> u32 {
         let nums = self
             .border_color
             .clone()
-            .strip_prefix("#")
+            .strip_prefix('#')
             .unwrap_or("000000")
             .to_owned();
         if nums.len() != 6 {
@@ -271,7 +270,39 @@ impl Options {
 
 impl Repr for Options {
     fn repr(&self) -> WmResult<String> {
-        Ok("world".to_string())
+        let mut buffer = String::new();
+        let options = format!("{:#?}", self);
+
+        for (ii, option) in options.lines().enumerate() {
+            if ii == 0 {
+                continue;
+            }
+
+            if option.starts_with('}') {
+                continue;
+            }
+
+            let part = option.trim();
+            let pair = part.split(',').collect::<Vec<&str>>()[0];
+
+            let (left, right) = pair.split_at(pair.find(':').unwrap());
+            let mut right = right.to_string();
+
+            right.remove(0);
+            right.remove(0);
+
+            if right == r#""""# {
+                right = String::new();
+            }
+
+            buffer.push_str("option ");
+            buffer.push_str(format!("\"{}\"", left).as_str());
+            buffer.push(' ');
+            buffer.push_str(format!("\"{}\"", right).as_str());
+            buffer.push('\n')
+        }
+
+        Ok(buffer)
     }
 }
 
@@ -293,5 +324,12 @@ mod tests {
         assert_eq!(c.convert_border_color(), 0xffffffff);
         c.border_color = "#fb11cc".to_string();
         assert_eq!(c.convert_border_color(), 0xfffb11cc)
+    }
+
+    #[test]
+    fn test_repr() {
+        let options = Options::default();
+
+        println!("{}", options.repr().unwrap())
     }
 }

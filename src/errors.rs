@@ -13,6 +13,13 @@ pub enum Error {
     Borrow(std::cell::BorrowError),
     BorrowMut(std::cell::BorrowMutError),
     Null(std::ffi::NulError),
+    Fmt(std::fmt::Error),
+}
+
+impl From<std::fmt::Error> for Error {
+    fn from(e: std::fmt::Error) -> Self {
+        Self::Fmt(e)
+    }
 }
 
 impl From<std::io::Error> for Error {
@@ -114,6 +121,7 @@ impl std::fmt::Display for Error {
             Self::Utf8(e) => write!(f, "[ERR] {}", e),
             Self::Null(e) => write!(f, "[ERR] {}", e),
             Self::X11ReplyOrIdError(e) => write!(f, "[ERR] {}", e),
+            Self::Fmt(e) => write!(f, "[ERR] {}", e)
         }
     }
 }

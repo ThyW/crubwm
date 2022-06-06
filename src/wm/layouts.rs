@@ -19,7 +19,7 @@ impl LayoutMask {
         | LayoutMask::TILING_EQUAL_VERTICAL
         | LayoutMask::TILING_MASTER_STACK;
 
-    pub fn from_slice(slice: &Vec<String>) -> WmResult<u64> {
+    pub fn from_slice(slice: &[String]) -> WmResult<u64> {
         let mut mask = 0u64;
         for each in slice.iter() {
             let eeach = each.clone().to_lowercase();
@@ -45,6 +45,7 @@ pub trait Layout<'a> {
     ) -> WmResult;
 }
 
+#[allow(clippy::enum_variant_names)]
 #[allow(unused)]
 #[derive(Clone, Copy)]
 pub enum LayoutType {
@@ -106,7 +107,7 @@ impl<'a> Layout<'a> for LayoutType {
                 let width = screen.width / len as u16;
                 let mut ii = -1;
 
-                for each in iter.into_iter() {
+                for each in iter {
                     match each.data_mut() {
                         ContainerType::Empty(g) => {
                             ii += 1;
@@ -141,7 +142,7 @@ impl<'a> Layout<'a> for LayoutType {
                 let height = screen.height / len as u16;
                 let mut ii = -1;
 
-                for each in iter.into_iter() {
+                for each in iter {
                     match each.data_mut() {
                         ContainerType::Floating(_) => (),
                         ContainerType::Empty(g) => {
@@ -172,7 +173,7 @@ impl<'a> Layout<'a> for LayoutType {
 
                 let screen: Geometry = screen.into();
                 if len == 1 {
-                    for one in iter.into_iter() {
+                    for one in iter {
                         match one.data_mut() {
                             ContainerType::Empty(g) => {
                                 g.x = screen.x;
@@ -197,7 +198,7 @@ impl<'a> Layout<'a> for LayoutType {
                     let width = screen.width / 2;
 
                     let mut ii = -2;
-                    for each in iter.into_iter() {
+                    for each in iter {
                         match each.data_mut() {
                             ContainerType::Empty(g) => {
                                 ii += 1;

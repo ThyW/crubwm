@@ -36,12 +36,12 @@ impl std::fmt::Display for Geometry {
 
 impl From<GetGeometryReply> for Geometry {
     fn from(g: GetGeometryReply) -> Self {
-        let mut s = Self::default();
-        s.x = g.x;
-        s.y = g.y;
-        s.width = g.width;
-        s.height = g.height;
-        s
+        Self {
+            x: g.x,
+            y: g.y,
+            width: g.width,
+            height: g.height
+        }
     }
 }
 

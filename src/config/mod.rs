@@ -27,8 +27,6 @@ impl Config {
 
         string.push_str(&self.keybinds.repr()?);
         string.push_str(&self.options.repr()?);
-        string.push_str(&self.start_hooks.repr()?);
-        string.push_str(&self.workspace_settings.repr()?);
 
         Ok(&[])
     }

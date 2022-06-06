@@ -192,7 +192,7 @@ impl State {
     fn workspace_with_id_mut<I: Into<WorkspaceId>>(&mut self, id: I) -> Option<&mut Workspace> {
         let id = id.into();
         for workspace in &mut self.workspaces {
-            if workspace.id == id.into() {
+            if workspace.id == id {
                 return Some(workspace);
             }
         }
@@ -440,13 +440,11 @@ impl State {
     fn get_focused_or_first_monitor(&self) -> WmResult<&Monitor> {
         if let Ok(monitor) = self.get_focused_monitor() {
             return Ok(monitor);
-        } else {
-            if let Some(monitor) = self.monitors.get(0) {
-                return Ok(monitor);
-            }
+        } else if let Some(monitor) = self.monitors.get(0) {
+            return Ok(monitor);
         }
 
-        return Err("There are currently no monitors available for this X display.".into());
+        Err("There are currently no monitors available for this X display.".into())
     }
 
     /// Return a reference to the currently focused monitor.
@@ -750,14 +748,11 @@ impl State {
                         last_event_position.0 as i16 - ev.root_x,
                         last_event_position.1 as i16 - ev.root_y,
                     );
-                    match container.data_mut() {
-                        crate::wm::container::ContainerType::Floating(c) => {
-                            c.geometry.x -= diff.0;
-                            c.geometry.y -= diff.1;
+                    if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
+                        c.geometry.x -= diff.0;
+                        c.geometry.y -= diff.1;
 
-                            connection.configure_window(c.window_id(), &c.geometry().into())?;
-                        }
-                        _ => (),
+                        connection.configure_window(c.window_id(), &c.geometry().into())?;
                     }
                     self.is_dragging = false
                 }
@@ -769,17 +764,14 @@ impl State {
                     );
                     let geom = container.data().geometry();
                     let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
-                    if !(w as u16 >= MIN_WIDTH) || !(h as u16 >= MIN_HEIGHT) {
+                    if (w as u16) < MIN_WIDTH || (h as u16) < MIN_HEIGHT {
                         self.is_resizing = false;
                         return Ok(());
                     }
-                    match container.data_mut() {
-                        crate::wm::container::ContainerType::Floating(c) => {
-                            c.geometry.width = w as u16;
-                            c.geometry.height = h as u16;
-                            connection.configure_window(c.window_id(), &c.geometry.into())?;
-                        }
-                        _ => (),
+                    if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
+                        c.geometry.width = w as u16;
+                        c.geometry.height = h as u16;
+                        connection.configure_window(c.window_id(), &c.geometry.into())?;
                     }
                     self.is_resizing = false
                 }
@@ -811,44 +803,36 @@ impl State {
 
         if !container.is_floating() {
             return Ok(());
-        } else {
-            if dragging {
-                let last_event_position = container.last_position().unwrap();
-                let diff = (
-                    (last_event_position.0 as i16 - ev.root_x) as f32 * DRAG_SPEED_COEFFICIENT,
-                    (last_event_position.1 as i16 - ev.root_y) as f32 * DRAG_SPEED_COEFFICIENT,
-                );
-                match container.data_mut() {
-                    crate::wm::container::ContainerType::Floating(c) => {
-                        c.geometry.x -= diff.0 as i16;
-                        c.geometry.y -= diff.1 as i16;
+        } else if dragging {
+            let last_event_position = container.last_position().unwrap();
+            let diff = (
+                (last_event_position.0 as i16 - ev.root_x) as f32 * DRAG_SPEED_COEFFICIENT,
+                (last_event_position.1 as i16 - ev.root_y) as f32 * DRAG_SPEED_COEFFICIENT,
+            );
+            if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
+                c.geometry.x -= diff.0 as i16;
+                c.geometry.y -= diff.1 as i16;
 
-                        connection.configure_window(c.window_id(), &c.geometry().into())?;
-                    }
-                    _ => (),
-                }
-                container.change_last_position((ev.root_x, ev.root_y))
-            } else if resizing {
-                let last_event_position = container.last_position().unwrap();
-                let diff = (
-                    last_event_position.0 as i16 - ev.root_x,
-                    last_event_position.1 as i16 - ev.root_y,
-                );
-                let geom = container.data().geometry();
-                let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
-                if !(w as u16 >= MIN_WIDTH) || !(h as u16 >= MIN_HEIGHT) {
-                    return Ok(());
-                }
-                match container.data_mut() {
-                    crate::wm::container::ContainerType::Floating(c) => {
-                        c.geometry.width = w as u16;
-                        c.geometry.height = h as u16;
-                        connection.configure_window(c.window_id(), &c.geometry.into())?;
-                    }
-                    _ => (),
-                }
-                container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
+                connection.configure_window(c.window_id(), &c.geometry().into())?;
             }
+            container.change_last_position((ev.root_x, ev.root_y))
+        } else if resizing {
+            let last_event_position = container.last_position().unwrap();
+            let diff = (
+                last_event_position.0 as i16 - ev.root_x,
+                last_event_position.1 as i16 - ev.root_y,
+            );
+            let geom = container.data().geometry();
+            let (w, h) = (geom.width as i16 - diff.0, geom.height as i16 - diff.1);
+            if (w as u16) < MIN_WIDTH || (h as u16) < MIN_HEIGHT {
+                return Ok(());
+            }
+            if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
+                c.geometry.width = w as u16;
+                c.geometry.height = h as u16;
+                connection.configure_window(c.window_id(), &c.geometry.into())?;
+            }
+            container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
         }
 
         Ok(())
@@ -891,7 +875,7 @@ impl State {
             .arg("-c")
             .args(
                 command
-                    .split(" ")
+                    .split(' ')
                     .map(|m| m.to_string())
                     .collect::<Vec<String>>(),
             )
@@ -916,10 +900,26 @@ impl State {
 
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
-            self.connection().kill_client(window)?;
+            if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
+                let property_reply = self
+                    .connection()
+                    .get_property(
+                        false,
+                        window,
+                        *pid_atom,
+                        x11rb::protocol::xproto::AtomEnum::CARDINAL,
+                        0,
+                        1,
+                    )?
+                    .reply()?;
 
-            self.connection().destroy_subwindows(window)?;
-            self.connection().destroy_window(window)?;
+                if let Some(value_iter) = property_reply.value32() {
+                    let pid = value_iter.into_iter().collect::<Vec<u32>>()[0];
+                    let _ = std::process::Command::new("kill")
+                        .arg(format!("{pid}"))
+                        .status()?;
+                };
+            }
         }
 
         Ok(())
@@ -1026,19 +1026,17 @@ impl State {
 
         let container = workspace.find_by_window_id_mut(focused_client_id)?;
 
-        if container.is_tiled() {
-            container.into_floating()?
+        if container.is_in_layout() {
+            container.change_to_floating()?
         } else {
-            container.into_layout()?
+            container.change_to_layout()?
         }
 
         let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
         connection
-            .clone()
             .configure_window(focused_client_id, &window_config)?;
         workspace.apply_layout(connection.clone(), None)?;
         connection
-            .clone()
             .set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
 
@@ -1060,7 +1058,7 @@ impl State {
             if let Some(container_to_focus) = container_to_focus_option {
                 let swap_with = container_to_focus?.id();
                 workspace.swap(*container_id, *swap_with)?;
-                workspace.apply_layout(connection.clone(), None)?;
+                workspace.apply_layout(connection, None)?;
             }
         }
 

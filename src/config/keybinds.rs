@@ -4,6 +4,8 @@ use crate::{
     wm::actions::{Action, Direction},
 };
 
+use std::fmt::Write;
+
 #[derive(Debug, Clone)]
 pub struct Keybinds(Vec<Keybind>);
 
@@ -62,7 +64,7 @@ impl Repr for Keybinds {
                 }
 
                 if key.is_special() {
-                    return_string.push_str(&format!("<{}>", key.get_x11_str().to_string()));
+                    write!(return_string, "<{}>", key.get_x11_str())?;
                 } else {
                     return_string.push_str(key.get_x11_str())
                 }
@@ -70,7 +72,7 @@ impl Repr for Keybinds {
 
             return_string.push('"');
 
-            return_string.push_str(&format!(" {}", keybind.action.repr()?));
+            write!(return_string, " {}", keybind.action.repr()?)?;
             return_string.push('\n');
         }
 
@@ -82,6 +84,18 @@ impl Keybinds {
     /// Add a new keybind.
     pub fn add(&mut self, keys: String, action: String) -> WmResult {
         let keybind = Keybind::from(keys, action)?;
+        let mut remove_index = None;
+
+        for (i, in_keybind) in self.0.iter().enumerate() {
+            if in_keybind.keys == keybind.keys {
+                remove_index = Some(i)
+            }
+        }
+
+        if let Some(to_remove) = remove_index {
+            self.0.remove(to_remove);
+        }
+
         self.0.push(keybind);
         Ok(())
     }

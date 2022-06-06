@@ -110,19 +110,19 @@ impl Client {
 
     pub fn with_gaps(&self) -> Geometry {
         let mut geom = self.geometry();
-        geom.x = geom.x + self.attributes.gap_left as i16;
-        geom.y = geom.y + self.attributes.gap_top as i16;
-        geom.width = geom.width - 2 * self.attributes.gap_right as u16;
-        geom.height = geom.height - 2 * self.attributes.gap_bottom as u16;
+        geom.x += self.attributes.gap_left as i16;
+        geom.y += self.attributes.gap_top as i16;
+        geom.width -= 2 * self.attributes.gap_right as u16;
+        geom.height -= 2 * self.attributes.gap_bottom as u16;
 
         geom
     }
     pub fn with_gaps_inner(&self) -> Geometry {
         let mut geom = self.geometry();
-        geom.x = geom.x + self.attributes.gap_left as i16 / 2;
-        geom.y = geom.y + self.attributes.gap_top as i16 / 2;
-        geom.width = geom.width - self.attributes.gap_right as u16 / 2;
-        geom.height = geom.height - self.attributes.gap_bottom as u16 / 2;
+        geom.x += self.attributes.gap_left as i16 / 2;
+        geom.y += self.attributes.gap_top as i16 / 2;
+        geom.width -= self.attributes.gap_right as u16 / 2;
+        geom.height -= self.attributes.gap_bottom as u16 / 2;
 
         geom
     }
@@ -172,7 +172,7 @@ impl Container {
         &self.container_id
     }
 
-    pub fn into_layout(&mut self) -> WmResult {
+    pub fn change_to_layout(&mut self) -> WmResult {
         self.container_type =
             self.data_mut().clone().into_layout().ok_or_else(|| {
                 Error::Generic("unable to change container type to InLayout".into())
@@ -181,7 +181,7 @@ impl Container {
         Ok(())
     }
 
-    pub fn into_floating(&mut self) -> WmResult {
+    pub fn change_to_floating(&mut self) -> WmResult {
         self.container_type =
             self.data_mut().clone().into_floating().ok_or_else(|| {
                 Error::Generic("unable to change contdainer type to Floating".into())
@@ -191,17 +191,17 @@ impl Container {
     }
 
     pub fn is_floating(&self) -> bool {
-        match self.container_type {
-            ContainerType::Floating(_) => true,
-            _ => false,
+        if matches!(self.container_type, ContainerType::Floating(_)) {
+            return true;
         }
+        false
     }
 
-    pub fn is_tiled(&self) -> bool {
-        match self.container_type {
-            ContainerType::InLayout(_) => true,
-            _ => false,
+    pub fn is_in_layout(&self) -> bool {
+        if matches!(self.container_type, ContainerType::InLayout(_)) {
+            return true;
         }
+        false
     }
 
     pub fn last_position(&self) -> Option<(i32, i32)> {
@@ -409,7 +409,7 @@ impl ContainerList {
     pub fn iter_in_layout_mut(
         &mut self,
     ) -> (usize, std::collections::vec_deque::IterMut<Container>) {
-        let len = self.containers.iter().filter(|x| x.is_tiled()).count();
+        let len = self.containers.iter().filter(|x| x.is_in_layout()).count();
         (len, self.containers.iter_mut())
     }
 

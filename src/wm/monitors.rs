@@ -31,12 +31,13 @@ impl Monitor {
     }
 
     pub fn from_monitor_info<I: Into<MonitorId>>(info: MonitorInfo, id: I) -> WmResult<Self> {
-        let mut size = Geometry::default();
-        size.x = info.x;
-        size.y = info.y;
-        size.width = info.width;
-        size.height = info.height;
-        let outputs = info.outputs.clone();
+        let size = Geometry {
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
+        };
+        let outputs = info.outputs;
 
         Ok(Self::new(size, id.into(), outputs))
     }
@@ -64,13 +65,11 @@ impl Monitor {
             }
             self.open_workspace = Some(new_id);
             Ok(())
+        } else if let Some(workspace_id) = self.workspaces.get(0) {
+            self.open_workspace = Some(*workspace_id);
+            Ok(())
         } else {
-            if let Some(workspace_id) = self.workspaces.get(0) {
-                self.open_workspace = Some(*workspace_id);
-                Ok(())
-            } else {
-                Err("This monitor does not have any workspaces.".into())
-            }
+            Err("This monitor does not have any workspaces.".into())
         }
     }
 
