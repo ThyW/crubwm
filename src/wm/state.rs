@@ -29,6 +29,8 @@ use crate::{
 
 use std::{collections::HashMap, rc::Rc};
 
+use super::atoms::AtomStruct;
+
 pub struct State {
     connection: Rc<RustConnection>,
     dpy: *mut Display,
@@ -37,7 +39,7 @@ pub struct State {
     focused_workspace: Option<WorkspaceId>,
     key_manager: KeyManager,
     last_client_id: ClientId,
-    _atoms: HashMap<String, u32>,
+    _atoms: HashMap<String, AtomStruct>,
     is_dragging: bool,
     is_resizing: bool,
     config: Rc<Config>,
@@ -907,24 +909,12 @@ impl State {
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
-                let property_reply = self
-                    .connection()
-                    .get_property(
-                        false,
-                        window,
-                        *pid_atom,
-                        x11rb::protocol::xproto::AtomEnum::CARDINAL,
-                        0,
-                        1,
-                    )?
-                    .reply()?;
-
-                if let Some(value_iter) = property_reply.value32() {
-                    let pid = value_iter.into_iter().collect::<Vec<u32>>()[0];
-                    let _ = std::process::Command::new("kill")
-                        .arg(format!("{pid}"))
-                        .status()?;
-                };
+                let pid: u32 = pid_atom.get_property(window, &self.connection())?[0]
+                    .clone()
+                    .try_into()?;
+                let _ = std::process::Command::new("kill")
+                    .arg(format!("{pid}"))
+                    .status()?;
             }
         }
 
