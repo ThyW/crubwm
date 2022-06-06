@@ -87,7 +87,7 @@ impl Keybinds {
         let mut remove_index = None;
 
         for (i, in_keybind) in self.0.iter().enumerate() {
-            if in_keybind.keys == keybind.keys {
+            if in_keybind.action == keybind.action || in_keybind.keys == keybind.keys {
                 remove_index = Some(i)
             }
         }

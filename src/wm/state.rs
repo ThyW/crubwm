@@ -42,6 +42,7 @@ pub struct State {
     is_resizing: bool,
     config: Rc<Config>,
     monitors: Vec<Monitor>,
+    floating_modifier: u16,
 }
 
 const ANY_KEY_MASK: u8 = 0;
@@ -98,6 +99,7 @@ impl State {
             is_resizing: false,
             config,
             monitors: Vec::new(),
+            floating_modifier: 64,
         })
     }
 
@@ -109,6 +111,10 @@ impl State {
         // ungrab any key with any modifier
         self.connection()
             .ungrab_key(ANY_KEY_MASK, self.root_window(), ANY_MOD_KEY_MASK)?;
+
+        if let Some(mask) = self.key_manager.get_floating_modifier() {
+            self.floating_modifier = mask;
+        }
 
         for (mask, keycodes) in self.key_manager.get_codes_to_grab(dpy, &binds)? {
             for code in keycodes {
@@ -544,7 +550,7 @@ impl State {
             self.root_window(),
             NONE,
             ButtonIndex::M1,
-            8u16,
+            self.floating_modifier,
         )?;
 
         self.connection().grab_button(
@@ -556,7 +562,7 @@ impl State {
             self.root_window(),
             NONE,
             ButtonIndex::M3,
-            8u16,
+            self.floating_modifier,
         )?;
 
         self.connection()
@@ -1033,11 +1039,9 @@ impl State {
         }
 
         let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
-        connection
-            .configure_window(focused_client_id, &window_config)?;
+        connection.configure_window(focused_client_id, &window_config)?;
         workspace.apply_layout(connection.clone(), None)?;
-        connection
-            .set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
+        connection.set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
 
         Ok(())

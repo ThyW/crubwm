@@ -46,6 +46,17 @@ impl KeyManager {
         Ok(())
     }
 
+    pub fn get_floating_modifier(&self) -> Option<u16> {
+        for managed in self.managed_keybinds.iter() {
+            if matches!(managed.action, Action::ToggleFloat) {
+                println!("mask is: {}", managed.mask);
+                return Some(managed.mask);
+            }
+        }
+
+        None
+    }
+
     /// Get a list of modifier key masks and a list of key codes.
     /// These values are used to "grab" these keys in the X server.
     pub fn get_codes_to_grab(

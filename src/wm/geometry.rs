@@ -40,7 +40,7 @@ impl From<GetGeometryReply> for Geometry {
             x: g.x,
             y: g.y,
             width: g.width,
-            height: g.height
+            height: g.height,
         }
     }
 }

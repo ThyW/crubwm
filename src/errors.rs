@@ -121,7 +121,7 @@ impl std::fmt::Display for Error {
             Self::Utf8(e) => write!(f, "[ERR] {}", e),
             Self::Null(e) => write!(f, "[ERR] {}", e),
             Self::X11ReplyOrIdError(e) => write!(f, "[ERR] {}", e),
-            Self::Fmt(e) => write!(f, "[ERR] {}", e)
+            Self::Fmt(e) => write!(f, "[ERR] {}", e),
         }
     }
 }

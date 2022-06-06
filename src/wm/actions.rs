@@ -32,7 +32,7 @@ impl TryFrom<&str> for Direction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     /// A noop, doesn't do anything.
     Noop,
