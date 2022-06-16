@@ -87,6 +87,13 @@ impl Command {
     pub fn get_type(&self) -> &CommandType {
         &self.cmd_type
     }
+
+    fn config_path(path: impl AsRef<str>) -> Self {
+        Self {
+            cmd_type: CommandType::Config,
+            args: Some(vec![path.as_ref().to_string()]),
+        }
+    }
 }
 
 /// Config file parser.
@@ -167,7 +174,7 @@ impl ConfigParser {
             new_config_file.write_all(ret.serialize()?)?;
         }
 
-        let file_contents = read_to_string(path)?;
+        let file_contents = read_to_string(&path)?;
 
         for line in file_contents.lines() {
             if !line.is_empty() {
@@ -211,7 +218,15 @@ impl ConfigParser {
             }
         }
 
+        ret.path = path;
+
         Ok(ret)
+    }
+
+    pub fn parse_with_path(path: impl AsRef<str>) -> WmResult<Config> {
+        let cmds = vec![Command::config_path(&path)];
+
+        Self::parse(&cmds)
     }
 }
 

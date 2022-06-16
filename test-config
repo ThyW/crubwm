@@ -1,6 +1,6 @@
 # keybinds
 keybind "<Alt>l" execute "alacritty"
-keybind "<Alt>d" execute "dmenu_run"
+keybind "<Alt>r" execute "dmenu_run"
 keybind "<Alt>1" goto "1"
 keybind "<Alt>2" goto "2"
 keybind "<Alt>3" goto "3"
@@ -30,9 +30,11 @@ keybind "<Alt>v" change_layout "TilingEqualVertical"
 keybind "<Alt>m" change_layout "TilingMasterStack"
 keybind "<Alt>f" cycle_layout
 keybind "<Alt><space>" toggle_float
+keybind "<Alt><Shift>r" reload_config
 
 # options
-option "border_color" "#00ff00"
+option "border_size" "3"
+option "border_color" "#b16286"
 option "window_name_position" "left"
 option "gap_top" true
 option "gap_bottom" true
@@ -47,6 +49,7 @@ option "gap_right_size" 4
 # hooks
 hook "startup" sync "notify-send 'hello world'"
 hook "startup" sync "notify-send 'hello world 2'"
+hook "startup" sync "xsetroot -solid '#ffffff'"
 
 # workspace settings
 workspace_setting 1 name "hello_world"

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
-use std::collections::VecDeque;
+use std::{collections::VecDeque, rc};
+
+use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt};
 
 use crate::{
     config::Config,
@@ -121,10 +123,74 @@ impl Client {
         let mut geom = self.geometry();
         geom.x += self.attributes.gap_left as i16 / 2;
         geom.y += self.attributes.gap_top as i16 / 2;
-        geom.width -= self.attributes.gap_right as u16 / 2;
-        geom.height -= self.attributes.gap_bottom as u16 / 2;
+        geom.width -= self.attributes.gap_right as u16;
+        geom.height -= self.attributes.gap_bottom as u16;
 
         geom
+    }
+
+    pub fn with_borders(&self) -> (Geometry, u32, u16, u16, u16) {
+        let mut geom = self.with_gaps();
+        geom.width -= 2 * self.attributes.border_size as u16;
+        geom.height -= 2 * self.attributes.border_size as u16;
+        let bytes = self.attributes.border_color.to_le_bytes();
+
+        (
+            geom,
+            self.attributes.border_size,
+            (bytes[0] as u16) << 8,
+            (bytes[1] as u16) << 8,
+            (bytes[2] as u16) << 8,
+        )
+    }
+
+    pub fn border_color(&self) -> (u16, u16, u16) {
+        let bytes = self.attributes.border_color.to_le_bytes();
+
+        (
+            (bytes[0] as u16) << 8,
+            (bytes[1] as u16) << 8,
+            (bytes[2] as u16) << 8,
+        )
+    }
+
+    pub fn border_width(&self) -> u32 {
+        self.attributes.border_size
+    }
+
+    pub fn change_config(&mut self, config: &Config) {
+        self.attributes = ClientAttributes::from(config.clone())
+    }
+
+    pub fn draw_borders<C: x11rb::connection::Connection>(
+        &self,
+        connection: rc::Rc<C>,
+        default_colormap: u32,
+    ) -> WmResult {
+        connection.configure_window(self.window_id(), &self.with_borders().0.into())?;
+
+        let border_colors = self.border_color();
+        let border_size = self.border_width();
+        let pixel = connection
+            .alloc_color(
+                default_colormap,
+                border_colors.0.into(),
+                border_colors.1.into(),
+                border_colors.2.into(),
+            )?
+            .reply()?
+            .pixel;
+        connection.change_window_attributes(
+            self.window_id(),
+            &ChangeWindowAttributesAux::new().border_pixel(pixel),
+        )?;
+        connection.configure_window(
+            self.window_id(),
+            &ConfigureWindowAux::new().border_width(Some(border_size)),
+        )?;
+        connection.free_colors(default_colormap, 0, &[pixel])?;
+
+        Ok(())
     }
 }
 

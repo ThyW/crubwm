@@ -113,6 +113,8 @@ impl Wm {
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
+                #[cfg(debug_assertions)]
+                println!("entering window: {}", e.event);
                 self.state.handle_enter_event(e.event)?;
             }
             Event::LeaveNotify(_) => {}

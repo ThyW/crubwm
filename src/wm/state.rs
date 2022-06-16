@@ -16,6 +16,7 @@ use x11rb::{
 use crate::{
     config::{Config, Keybinds},
     errors::{Error, WmResult},
+    parsers::ConfigParser,
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
     wm::container::{Client, ClientId, CT_MASK_TILING},
@@ -29,7 +30,7 @@ use crate::{
 
 use std::{collections::HashMap, rc::Rc};
 
-use super::atoms::AtomStruct;
+use super::{atoms::AtomStruct, container::ContainerType, layouts::LayoutType};
 
 pub struct State {
     connection: Rc<RustConnection>,
@@ -45,6 +46,7 @@ pub struct State {
     config: Rc<Config>,
     monitors: Vec<Monitor>,
     floating_modifier: u16,
+    default_colormap: u32,
 }
 
 const ANY_KEY_MASK: u8 = 0;
@@ -83,6 +85,7 @@ impl State {
         );
 
         let root_window = connection.setup().roots[screen_index as usize].root;
+        let default_colormap = connection.setup().roots[screen_index as usize].default_colormap;
         connection.change_window_attributes(root_window, &change)?;
         connection.flush()?;
 
@@ -102,6 +105,7 @@ impl State {
             config,
             monitors: Vec::new(),
             floating_modifier: 64,
+            default_colormap,
         })
     }
 
@@ -153,6 +157,10 @@ impl State {
             .into();
 
         Ok(geom)
+    }
+
+    fn default_colormap(&self) -> u32 {
+        self.default_colormap
     }
 
     /// Go through all workspaces, if they contain a given window: return the reference to the
@@ -496,19 +504,11 @@ impl State {
         let query_tree_cookie = connection.query_tree(root_window)?;
         let query_tree_reply = query_tree_cookie.reply()?;
 
-        let mut windows_with_geometries: Vec<(u32, Geometry)> = Vec::new();
-        let mut geom_cookies = Vec::new();
-
         for window_id in query_tree_reply.children {
-            geom_cookies.push((window_id, connection.get_geometry(window_id)?));
+            self.manage_window(window_id)?
         }
 
-        for (id, cookie) in geom_cookies {
-            let geom = cookie.reply()?.into();
-            windows_with_geometries.push((id, geom))
-        }
-
-        self.manage_windows(windows_with_geometries)
+        Ok(())
     }
 
     /// Let a window be managed by the window manager.
@@ -517,6 +517,7 @@ impl State {
         let connection = self.connection();
         let geometry = self.connection().get_geometry(window)?.reply()?;
         let new_client_id = self.new_client_id();
+        let default_colormap = self.default_colormap();
 
         let workspace = self.get_workspace_under_cursor_mut()?;
         let id = workspace.id;
@@ -569,9 +570,10 @@ impl State {
 
         self.connection()
             .reparent_window(window, self.root_window(), 0, 0)?;
+
         self.connection().map_window(window)?;
         self.get_focused_workspace_mut()?
-            .apply_layout(connection, None)?;
+            .apply_layout(connection, None, default_colormap)?;
 
         self.connection()
             .set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)?;
@@ -582,57 +584,20 @@ impl State {
         Ok(())
     }
 
-    /// Let multiple windows be managed by the window manager.
-    ///
-    /// For performance sake, this method does not call `manage_window` internally.
-    pub fn manage_windows(&mut self, windows_and_geometries: Vec<(u32, Geometry)>) -> WmResult {
-        let connection = self.connection();
-        let config = self.config.clone();
-        let new_client_ids = (0usize..windows_and_geometries.len())
-            .map(|_| self.new_client_id())
-            .collect::<Vec<u64>>();
-        self.get_focused_workspace_mut()?.insert_many(
-            windows_and_geometries
-                .iter()
-                .enumerate()
-                .map(|(index, (window, geometry))| {
-                    Client::new_without_process_id(
-                        *window,
-                        *geometry,
-                        new_client_ids[index],
-                        &config,
-                    )
-                })
-                .collect::<Vec<Client>>()
-                .into_iter(),
-            windows_and_geometries
-                .iter()
-                .map(|_| CT_MASK_TILING)
-                .collect::<Vec<u8>>()
-                .into_iter(),
-        );
-        self.get_focused_workspace_mut()?
-            .apply_layout(connection, None)?;
-
-        for (window, _) in windows_and_geometries {
-            self.connection().map_window(window)?;
-        }
-
-        Ok(())
-    }
-
     /// This method is called when a window is destroyed.
     ///
     /// First, start by finding the window than remove it and apply the correct geometries to the
     /// rest of the windows in the workspace.
     pub fn unmanage_window(&mut self, window: u32) -> WmResult {
         let connection = self.connection();
+        let default_colormap = self.default_colormap();
 
         let workspace_option = self.workspace_for_window_mut(window);
+        let mut workspace_id = None;
 
         if let Some(workspace) = workspace_option {
             workspace.remove_window(window)?;
-            workspace.apply_layout(connection, None)?;
+            let _ = workspace_id.insert(workspace.id);
         }
 
         // set input focus to previously focused client
@@ -649,6 +614,11 @@ impl State {
             self.get_focused_workspace_mut()?
                 .focus
                 .remove_client(window);
+        }
+        if let Some(workspace_id) = workspace_id {
+            if let Some(workspace) = self.workspace_with_id_mut(workspace_id) {
+                workspace.apply_layout(connection, None, default_colormap)?
+            }
         }
 
         Ok(())
@@ -736,6 +706,7 @@ impl State {
         &mut self,
         ev: &x11rb::protocol::xproto::ButtonReleaseEvent,
     ) -> WmResult {
+        let default_colormap = self.default_colormap();
         let connection = self.connection();
         let workspace = self.workspace_for_window_mut(ev.event).ok_or_else(|| {
             Error::Generic(format!(
@@ -761,6 +732,26 @@ impl State {
                         c.geometry.y -= diff.1;
 
                         connection.configure_window(c.window_id(), &c.geometry().into())?;
+                        let border_colors = c.border_color();
+                        let border_size = c.border_width();
+                        let pixel = connection
+                            .alloc_color(
+                                default_colormap,
+                                border_colors.0.into(),
+                                border_colors.1.into(),
+                                border_colors.2.into(),
+                            )?
+                            .reply()?
+                            .pixel;
+                        connection.change_window_attributes(
+                            c.window_id(),
+                            &ChangeWindowAttributesAux::new().border_pixel(pixel),
+                        )?;
+                        connection.configure_window(
+                            c.window_id(),
+                            &ConfigureWindowAux::new().border_width(Some(border_size)),
+                        )?;
+                        connection.free_colors(default_colormap, 0, &[pixel])?;
                     }
                     self.is_dragging = false
                 }
@@ -780,6 +771,26 @@ impl State {
                         c.geometry.width = w as u16;
                         c.geometry.height = h as u16;
                         connection.configure_window(c.window_id(), &c.geometry.into())?;
+                        let border_colors = c.border_color();
+                        let border_size = c.border_width();
+                        let pixel = connection
+                            .alloc_color(
+                                default_colormap,
+                                border_colors.0.into(),
+                                border_colors.1.into(),
+                                border_colors.2.into(),
+                            )?
+                            .reply()?
+                            .pixel;
+                        connection.change_window_attributes(
+                            c.window_id(),
+                            &ChangeWindowAttributesAux::new().border_pixel(pixel),
+                        )?;
+                        connection.configure_window(
+                            c.window_id(),
+                            &ConfigureWindowAux::new().border_width(Some(border_size)),
+                        )?;
+                        connection.free_colors(default_colormap, 0, &[pixel])?;
                     }
                     self.is_resizing = false
                 }
@@ -797,6 +808,7 @@ impl State {
         &mut self,
         ev: &x11rb::protocol::xproto::MotionNotifyEvent,
     ) -> WmResult {
+        let default_colormap = self.default_colormap();
         let connection = self.connection();
         let dragging = self.is_dragging;
         let resizing = self.is_resizing;
@@ -821,7 +833,27 @@ impl State {
                 c.geometry.x -= diff.0 as i16;
                 c.geometry.y -= diff.1 as i16;
 
-                connection.configure_window(c.window_id(), &c.geometry().into())?;
+                connection.configure_window(c.window_id(), &c.with_borders().0.into())?;
+                let border_colors = c.border_color();
+                let border_size = c.border_width();
+                let pixel = connection
+                    .alloc_color(
+                        default_colormap,
+                        border_colors.0.into(),
+                        border_colors.1.into(),
+                        border_colors.2.into(),
+                    )?
+                    .reply()?
+                    .pixel;
+                connection.change_window_attributes(
+                    c.window_id(),
+                    &ChangeWindowAttributesAux::new().border_pixel(pixel),
+                )?;
+                connection.configure_window(
+                    c.window_id(),
+                    &ConfigureWindowAux::new().border_width(Some(border_size)),
+                )?;
+                connection.free_colors(default_colormap, 0, &[pixel])?;
             }
             container.change_last_position((ev.root_x, ev.root_y))
         } else if resizing {
@@ -838,9 +870,9 @@ impl State {
             if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
                 c.geometry.width = w as u16;
                 c.geometry.height = h as u16;
-                connection.configure_window(c.window_id(), &c.geometry.into())?;
+                c.draw_borders(connection.clone(), default_colormap)?;
             }
-            container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
+            container.change_last_position((ev.root_x - diff.0 as i16, ev.root_y - diff.1 as i16));
         }
 
         Ok(())
@@ -870,6 +902,7 @@ impl State {
             Action::CycleLayout => self.action_cycle_layout()?,
             Action::ToggleFloat => self.action_toggle_float()?,
             Action::Swap(direction) => self.action_swap(direction)?,
+            Action::ReloadConfig => self.action_reload_config()?,
         }
 
         Ok(())
@@ -923,10 +956,12 @@ impl State {
 
     fn action_focus(&mut self, direction: Direction) -> WmResult {
         let connection = self.connection();
+        let default_colormap = self.default_colormap();
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             let workspace = self.get_focused_workspace_mut()?;
             let container = workspace.find_by_window_id(window)?;
             let container_id = container.id();
+            let layout = workspace.current_layout().clone();
 
             let container_to_focus_option = match direction {
                 Direction::Next => Some(workspace.next_container(*container_id)),
@@ -937,12 +972,15 @@ impl State {
                 let container = container_to_focus?.data();
                 let size = container.geometry();
                 if let Some(window_to_focus) = container.window_id() {
+                    workspace.focus.set_focused_client(window_to_focus);
+                    if matches!(layout, LayoutType::StackingHorizontal) {
+                        workspace.apply_layout(connection.clone(), None, default_colormap)?;
+                    }
                     connection.set_input_focus(
                         InputFocus::PARENT,
                         window_to_focus,
                         x11rb::CURRENT_TIME,
                     )?;
-                    workspace.focus.set_focused_client(window_to_focus);
                     self.connection().warp_pointer(
                         NONE,
                         self.root_window(),
@@ -983,18 +1021,22 @@ impl State {
                 ))
             })?
             .id;
+        let default_colormap = self.default_colormap();
 
         self.connection().unmap_subwindows(focused_client)?;
         self.connection().unmap_window(focused_client)?;
 
         let focused_workspace = self.get_focused_workspace_mut()?;
         let container = focused_workspace.remove_and_return_window(focused_client)?;
-        self.get_focused_workspace_mut()?
-            .apply_layout(connection.clone(), None)?;
+        self.get_focused_workspace_mut()?.apply_layout(
+            connection.clone(),
+            None,
+            default_colormap,
+        )?;
 
         let other_workspace = self.workspace_with_id_mut(workspace_id).unwrap();
         other_workspace.insert_container(container)?;
-        other_workspace.apply_layout(connection, None)?;
+        other_workspace.apply_layout(connection, None, default_colormap)?;
 
         let monitor = self.monitor_for_workspace_mut(workspace_id)?;
         if monitor.get_open_workspace()? == workspace_id {
@@ -1007,20 +1049,22 @@ impl State {
 
     fn action_change_layout(&mut self, layout: String) -> WmResult {
         let connection = self.connection();
+        let default_colormap = self.default_colormap();
 
         self.get_focused_workspace_mut()?.change_layout(layout)?;
         self.get_focused_workspace_mut()?
-            .apply_layout(connection, None)?;
+            .apply_layout(connection, None, default_colormap)?;
 
         Ok(())
     }
 
     fn action_cycle_layout(&mut self) -> WmResult {
+        let default_colormap = self.default_colormap();
         let connection = self.connection();
         let workspace = self.get_focused_workspace_mut()?;
 
         workspace.cycle_layout()?;
-        workspace.apply_layout(connection, None)?;
+        workspace.apply_layout(connection, None, default_colormap)?;
         Ok(())
     }
 
@@ -1030,6 +1074,7 @@ impl State {
             Some(c) => c,
             None => return Err("clinet focus error: there is no client currently in focus.".into()),
         };
+        let default_colormap = self.default_colormap();
         let workspace = self.get_focused_workspace_mut()?;
 
         let container = workspace.find_by_window_id_mut(focused_client_id)?;
@@ -1042,7 +1087,7 @@ impl State {
 
         let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
         connection.configure_window(focused_client_id, &window_config)?;
-        workspace.apply_layout(connection.clone(), None)?;
+        workspace.apply_layout(connection.clone(), None, default_colormap)?;
         connection.set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
 
@@ -1051,6 +1096,7 @@ impl State {
 
     fn action_swap(&mut self, direction: Direction) -> WmResult {
         let connection = self.connection();
+        let default_colormap = self.default_colormap();
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             let workspace = self.get_focused_workspace_mut()?;
             let container = workspace.find_by_window_id(window)?;
@@ -1064,8 +1110,63 @@ impl State {
             if let Some(container_to_focus) = container_to_focus_option {
                 let swap_with = container_to_focus?.id();
                 workspace.swap(*container_id, *swap_with)?;
-                workspace.apply_layout(connection, None)?;
+                workspace.apply_layout(connection, None, default_colormap)?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn action_reload_config(&mut self) -> WmResult {
+        // TODO: Take a look at how monitor changes should be handled
+        let path = &self.config.path;
+        let config = ConfigParser::parse_with_path(path)?;
+        let mask: u32 =
+            (EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION).into();
+        self.config = Rc::new(config);
+        let connection = self.connection();
+        let root_window = self.root_window();
+
+        // redo keybinds
+        self.init_keyman(self.config.keybinds.clone())?;
+        // regrab keys for all clients, reapply clinet attributes and reapply layouts
+        for workspace in self.workspaces.iter_mut() {
+            for container in workspace.containers_mut().iter_mut() {
+                if let Some(window_id) = container.data().window_id() {
+                    connection.ungrab_button(ButtonIndex::ANY, window_id, ANY_MOD_KEY_MASK)?;
+                    connection.grab_button(
+                        true,
+                        window_id,
+                        mask as u16,
+                        GrabMode::ASYNC,
+                        GrabMode::ASYNC,
+                        root_window,
+                        NONE,
+                        ButtonIndex::M1,
+                        self.floating_modifier,
+                    )?;
+
+                    connection.grab_button(
+                        true,
+                        window_id,
+                        mask as u16,
+                        GrabMode::ASYNC,
+                        GrabMode::ASYNC,
+                        root_window,
+                        NONE,
+                        ButtonIndex::M3,
+                        self.floating_modifier,
+                    )?;
+                }
+                match container.data_mut() {
+                    ContainerType::InLayout(client) => client.change_config(&self.config),
+                    ContainerType::Floating(client) => client.change_config(&self.config),
+
+                    _ => (),
+                }
+            }
+
+            workspace.apply_layout(connection.clone(), None, self.default_colormap)?;
         }
 
         Ok(())

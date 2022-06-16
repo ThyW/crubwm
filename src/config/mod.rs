@@ -19,6 +19,7 @@ pub struct Config {
     pub options: Options,
     pub start_hooks: StartHooks,
     pub workspace_settings: AllWorkspaceSettings,
+    pub path: String,
 }
 
 impl Config {

@@ -6,10 +6,7 @@ pub struct Options {
     /// Should a window border be shown on the given side of the window?
     ///
     /// Default: disabled for all
-    pub border_up: bool,
-    pub border_down: bool,
-    pub border_left: bool,
-    pub border_right: bool,
+    pub border: bool,
 
     /// Size, in pixels of window borders.
     ///
@@ -17,10 +14,7 @@ pub struct Options {
     /// If the value is 0, the border won't be shown.
     ///
     /// Default: 1 for all
-    pub border_up_size: u32,
-    pub border_down_size: u32,
-    pub border_left_size: u32,
-    pub border_right_size: u32,
+    pub border_size: u32,
 
     /// A hexadecimal RGB representation of the window border color.
     ///
@@ -69,15 +63,8 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            border_up: false,
-            border_down: false,
-            border_left: false,
-            border_right: false,
-
-            border_up_size: 1,
-            border_down_size: 1,
-            border_left_size: 1,
-            border_right_size: 1,
+            border: true,
+            border_size: 1,
 
             border_color: "#000000".to_string(),
 
@@ -101,37 +88,13 @@ impl Default for Options {
 impl Options {
     pub fn add(&mut self, name: String, value: String) -> WmResult {
         match name.as_ref() {
-            "border_up" => {
+            "border" => {
                 let val = value.to_lowercase().parse::<bool>()?;
-                self.border_up = val;
+                self.border = val;
             }
-            "border_down" => {
-                let val = value.to_lowercase().parse::<bool>()?;
-                self.border_down = val;
-            }
-            "border_left" => {
-                let val = value.to_lowercase().parse::<bool>()?;
-                self.border_left = val;
-            }
-            "border_right" => {
-                let val = value.to_lowercase().parse::<bool>()?;
-                self.border_right = val;
-            }
-            "border_up_size" => {
+            "border_size" => {
                 let val = value.to_lowercase().parse::<u32>()?;
-                self.border_up_size = val;
-            }
-            "border_down_size" => {
-                let val = value.to_lowercase().parse::<u32>()?;
-                self.border_down_size = val;
-            }
-            "border_left_size" => {
-                let val = value.to_lowercase().parse::<u32>()?;
-                self.border_left_size = val;
-            }
-            "border_right_size" => {
-                let val = value.to_lowercase().parse::<u32>()?;
-                self.border_right_size = val;
+                self.border_size = val;
             }
             "border_color" => {
                 if value.starts_with('#') && value.len() == 7 {
@@ -227,25 +190,12 @@ impl Options {
     /// disabled.
     ///
     /// The values return are in the following order:
-    /// - top border
-    /// - bottom border
-    /// - left border
-    /// - right border
-    pub fn get_borders(&self) -> (u32, u32, u32, u32) {
-        let mut ret = (0, 0, 0, 0);
-        if self.border_up {
-            ret.0 = self.border_up_size;
+    pub fn get_borders(&self) -> u32 {
+        if self.border {
+            return self.border_size;
         }
-        if self.border_up {
-            ret.1 = self.border_down_size;
-        }
-        if self.border_up {
-            ret.2 = self.border_left_size;
-        }
-        if self.border_up {
-            ret.3 = self.border_right_size;
-        }
-        ret
+
+        0
     }
 
     /// Convert a string representing a hex color into a 32-bit RGBA number.

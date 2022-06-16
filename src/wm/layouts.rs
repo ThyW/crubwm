@@ -7,7 +7,7 @@ use crate::{
 };
 
 use std::rc::Rc;
-use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt};
+use x11rb::protocol::xproto::ConnectionExt;
 
 pub struct LayoutMask;
 
@@ -15,9 +15,11 @@ impl LayoutMask {
     pub const TILING_EQUAL_HORIZONTAL: u64 = 1 << 0;
     pub const TILING_EQUAL_VERTICAL: u64 = 1 << 1;
     pub const TILING_MASTER_STACK: u64 = 1 << 2;
+    pub const STACKING_HORIZONTAL: u64 = 1 << 3;
     pub const ALL: u64 = LayoutMask::TILING_EQUAL_HORIZONTAL
         | LayoutMask::TILING_EQUAL_VERTICAL
-        | LayoutMask::TILING_MASTER_STACK;
+        | LayoutMask::TILING_MASTER_STACK
+        | LayoutMask::STACKING_HORIZONTAL;
 
     pub fn from_slice(slice: &[String]) -> WmResult<u64> {
         let mut mask = 0u64;
@@ -37,21 +39,25 @@ impl LayoutMask {
 }
 
 pub trait Layout<'a> {
-    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection>(
+    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection, I: Into<u32>>(
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
         connection: Rc<C>,
+        default_colormap: I,
+        focused_client: Option<u32>,
     ) -> WmResult;
 }
 
 #[allow(clippy::enum_variant_names)]
 #[allow(unused)]
+#[repr(u64)]
 #[derive(Clone, Copy)]
 pub enum LayoutType {
-    TilingEqualHorizontal = LayoutMask::TILING_EQUAL_HORIZONTAL as isize,
-    TilingEqualVertical = LayoutMask::TILING_EQUAL_VERTICAL as isize,
-    TilingMasterStack = LayoutMask::TILING_MASTER_STACK as isize,
+    TilingEqualHorizontal = LayoutMask::TILING_EQUAL_HORIZONTAL,
+    TilingEqualVertical = LayoutMask::TILING_EQUAL_VERTICAL,
+    TilingMasterStack = LayoutMask::TILING_MASTER_STACK,
+    StackingHorizontal = LayoutMask::STACKING_HORIZONTAL,
 }
 
 impl LayoutType {
@@ -68,6 +74,7 @@ impl TryFrom<u64> for LayoutType {
             LayoutMask::TILING_EQUAL_HORIZONTAL => Ok(Self::TilingEqualHorizontal),
             LayoutMask::TILING_EQUAL_VERTICAL => Ok(Self::TilingEqualVertical),
             LayoutMask::TILING_MASTER_STACK => Ok(Self::TilingMasterStack),
+            LayoutMask::STACKING_HORIZONTAL => Ok(Self::StackingHorizontal),
             _ => Err("layout error: invalid layout id.".into()),
         }
     }
@@ -90,12 +97,15 @@ impl TryFrom<&str> for LayoutType {
 }
 
 impl<'a> Layout<'a> for LayoutType {
-    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection>(
+    fn apply<G: Into<Geometry>, C: x11rb::connection::Connection, I: Into<u32>>(
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
         connection: Rc<C>,
+        default_colormap: I,
+        focused_clinet: Option<u32>,
     ) -> WmResult {
+        let default_colormap = default_colormap.into();
         match &self {
             Self::TilingEqualHorizontal => {
                 let (len, iter) = cs;
@@ -122,8 +132,7 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.y = screen.y;
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
-                            let aux: ConfigureWindowAux = c.with_gaps().into();
-                            connection.configure_window(c.window_id(), &aux)?;
+                            c.draw_borders(connection.clone(), default_colormap)?;
                         }
                         ContainerType::Floating(_) => (),
                     };
@@ -158,7 +167,7 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.y = screen.y + (height as i16 * ii as i16);
                             c.geometry.width = screen.width;
                             c.geometry.height = height;
-                            connection.configure_window(c.window_id(), &c.with_gaps().into())?;
+                            c.draw_borders(connection.clone(), default_colormap)?;
                         }
                     }
                 }
@@ -186,8 +195,7 @@ impl<'a> Layout<'a> for LayoutType {
                                 c.geometry.y = screen.y;
                                 c.geometry.width = screen.width;
                                 c.geometry.height = screen.height;
-                                connection
-                                    .configure_window(c.window_id(), &c.with_gaps().into())?;
+                                c.draw_borders(connection.clone(), default_colormap)?;
                             }
                             _ => {}
                         };
@@ -221,15 +229,13 @@ impl<'a> Layout<'a> for LayoutType {
                                     c.geometry.y = screen.y;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = screen.height;
-                                    connection
-                                        .configure_window(c.window_id(), &c.with_gaps().into())?;
+                                    c.draw_borders(connection.clone(), default_colormap)?;
                                 } else {
                                     c.geometry.x = screen.x + width as i16 - 1;
                                     c.geometry.y = screen.y + height as i16 * ii;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = height;
-                                    connection
-                                        .configure_window(c.window_id(), &c.with_gaps().into())?;
+                                    c.draw_borders(connection.clone(), default_colormap)?;
                                 }
                             }
                             _ => {}
@@ -238,6 +244,42 @@ impl<'a> Layout<'a> for LayoutType {
 
                     Ok(())
                 }
+            }
+            Self::StackingHorizontal => {
+                let screen = screen.into();
+                if cs.0 == 0 {
+                    return Ok(());
+                }
+
+                for container in cs.1.into_iter() {
+                    match container.data_mut() {
+                        ContainerType::InLayout(c) => {
+                            if let Some(focused_client) = focused_clinet {
+                                if focused_client == c.window_id() {
+                                    c.geometry.x = screen.x;
+                                    c.geometry.y = screen.y;
+                                    c.geometry.width = screen.width;
+                                    c.geometry.height = screen.height;
+
+                                    c.draw_borders(connection.clone(), default_colormap)?;
+                                    connection.map_subwindows(c.window_id())?;
+                                    connection.map_window(c.window_id())?;
+                                } else {
+                                    c.geometry.x = screen.x;
+                                    c.geometry.y = screen.y;
+                                    c.geometry.width = screen.width;
+                                    c.geometry.height = screen.height;
+
+                                    connection.unmap_subwindows(c.window_id())?;
+                                    connection.unmap_window(c.window_id())?;
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+
+                Ok(())
             }
         }
     }

@@ -54,7 +54,10 @@ pub enum Action {
     CycleLayout,
     /// Toggle the currently focused window in and out of floating.
     ToggleFloat,
+    /// Swap two clients.
     Swap(Direction),
+    /// Reload a configuration file
+    ReloadConfig,
 }
 
 impl Action {
@@ -171,6 +174,7 @@ impl Action {
                         }
                     }
                 }
+                "reload_config" => Action::ReloadConfig,
                 a => return Err(format!("action parsing error: Unknown action {a}!").into()),
             };
 
@@ -192,6 +196,7 @@ impl Repr for Action {
             &Self::CycleLayout => Ok("cycle_layout".to_string()),
             Self::ChangeLayout(name) => Ok(format!("change_layout {name}")),
             &Self::Swap(direction) => Ok(format!("swap {}", direction.repr()?)),
+            &Self::ReloadConfig => Ok("reload_config".to_string()),
         }
     }
 }

@@ -79,6 +79,10 @@ impl Workspace {
         Ok(())
     }
 
+    pub fn current_layout(&self) -> &LayoutType {
+        &self.layout
+    }
+
     /// Contains a client with the given window id?
     pub fn contains_window(&self, wid: u32) -> bool {
         self.containers.id_for_window(wid).is_ok()
@@ -105,6 +109,7 @@ impl Workspace {
 
     /// Insert multiple clients into the workspace, given an `Iterator` over `Client`s and an
     /// `Iterator` over container type masks.
+    #[allow(unused)]
     pub fn insert_many<C: std::iter::Iterator<Item = Client>, T: std::iter::Iterator<Item = u8>>(
         &mut self,
         cs: C,
@@ -125,12 +130,16 @@ impl Workspace {
         &mut self,
         connection: Rc<C>,
         screen_size: Option<Geometry>,
+        default_colormap: impl Into<u32>,
     ) -> WmResult {
         let screen_size = screen_size.unwrap_or(self.screen_size);
+        let focused_option = self.focus.focused_client();
         self.layout.apply(
             screen_size,
             self.containers.iter_in_layout_mut(),
             connection,
+            default_colormap,
+            focused_option,
         )
     }
 
@@ -194,13 +203,19 @@ impl Workspace {
         self.containers.container_insert_back(container)
     }
 
+    /// Gett the size of the workspace in pixels.
     pub fn screen(&self) -> Geometry {
         self.screen_size
     }
 
+    /// Swap two containers.
     pub fn swap<I: Into<ContainerId>>(&mut self, a: I, b: I) -> WmResult {
         self.containers.swap(a, b)?;
         Ok(())
+    }
+
+    pub(super) fn containers_mut(&mut self) -> &mut ContainerList {
+        &mut self.containers
     }
 }
 

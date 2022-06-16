@@ -70,10 +70,10 @@ TODO
 - [x] basic keybinds and action support(switching focused clients, moving clients between workspaces, switching workspaces etc...)
 - [x] multiple monitor support - more or less works, can now use it as a daily driver
 - [x] floating windows
-- [ ] graphics, text and window decorations
-- [ ] more configuration options
+- [x] graphics, text and window decorations
+- [x] stacking layout
 - [ ] bar
 - [ ] EWMH and ICCC compliance
 - [x] startup hooks
-- [ ] config reloading on the fly
-- [ ] docs
+- [x] config reloading on the fly
+- [ ] docs - most of the project has doc strings

@@ -16,11 +16,7 @@ pub struct ClientAttributes {
     pub gap_left: u32,
     pub gap_right: u32,
 
-    pub border_up_width: u32,
-    pub border_down_width: u32,
-    pub border_left_width: u32,
-    pub border_right_width: u32,
-
+    pub border_size: u32,
     pub border_color: u32,
 }
 
@@ -59,17 +55,14 @@ impl From<Geometry> for ConfigureWindowAux {
 impl From<Config> for ClientAttributes {
     fn from(c: Config) -> Self {
         let gaps = c.options.get_gaps();
-        let borders = c.options.get_borders();
+        let border = c.options.get_borders();
         let border_color = c.options.convert_border_color();
         Self {
             gap_top: gaps.0,
             gap_bottom: gaps.1,
             gap_left: gaps.2,
             gap_right: gaps.3,
-            border_up_width: borders.0,
-            border_down_width: borders.1,
-            border_left_width: borders.2,
-            border_right_width: borders.3,
+            border_size: border,
             border_color,
         }
     }
