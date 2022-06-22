@@ -1,12 +1,12 @@
 pub mod keybinds;
 pub mod keysyms;
-pub mod options;
+pub mod settings;
 pub mod start_hooks;
 pub mod workspace_settings;
 
 pub use crate::errors::WmResult;
 pub use keybinds::*;
-pub use options::*;
+pub use settings::*;
 pub use start_hooks::*;
 pub use workspace_settings::*;
 

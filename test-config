@@ -32,19 +32,19 @@ keybind "<Alt>f" cycle_layout
 keybind "<Alt><space>" toggle_float
 keybind "<Alt><Shift>r" reload_config
 
-# options
-option "border_size" "3"
-option "border_color" "#b16286"
-option "window_name_position" "left"
-option "gap_top" true
-option "gap_bottom" true
-option "gap_left" true
-option "gap_right" true
+# sets
+set "border_size" "3"
+set "border_color" "#b16286"
+set "window_name_position" "left"
+set "gap_top" true
+set "gap_bottom" true
+set "gap_left" true
+set "gap_right" true
 
-option "gap_top_size" 4
-option "gap_bottom_size" 4
-option "gap_left_size" 4
-option "gap_right_size" 4
+set "gap_top_size" 4
+set "gap_bottom_size" 4
+set "gap_left_size" 4
+set "gap_right_size" 4
 
 # hooks
 hook "startup" sync "notify-send 'hello world'"
@@ -52,6 +52,6 @@ hook "startup" sync "notify-send 'hello world 2'"
 hook "startup" sync "xsetroot -solid '#ffffff'"
 
 # workspace settings
-workspace_setting 1 name "hello_world"
-workspace_setting 1 allowed_layouts "all"
-workspace_setting 1 monitor "0"
+workspace_set 1 name "hello_world"
+workspace_set 1 allowed_layouts "all"
+workspace_set 1 monitor "0"

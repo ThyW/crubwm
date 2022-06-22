@@ -283,7 +283,7 @@ impl TryFrom<String> for ConfigLine {
                 action: parser.0[1].clone(),
                 action_arguments: parser.0[2..].to_vec(),
             });
-        } else if let Some(s) = line.strip_prefix("option ") {
+        } else if let Some(s) = line.strip_prefix("set ") {
             let rest_of_line = s;
             let parser = LineParser::parse(rest_of_line.to_string());
 
@@ -300,7 +300,7 @@ impl TryFrom<String> for ConfigLine {
                 hook_option: parser.0[1].clone(),
                 hook_args: parser.0[2..].to_vec(),
             });
-        } else if let Some(s) = line.strip_prefix("workspace_setting") {
+        } else if let Some(s) = line.strip_prefix("workspace_set") {
             let rest_of_line = s;
             let parser = LineParser::parse(rest_of_line.to_string());
 

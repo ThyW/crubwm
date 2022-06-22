@@ -58,6 +58,7 @@ keybind <mod><shift>h swap previous
 
 keybind <mod>s cycle_layout
 keybind <mod><space> toggle_float
+keybind <mod><shift>r reload_config
 ```
 
 This are the default binds which will be generated for you.
