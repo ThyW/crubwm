@@ -1,3 +1,4 @@
+pub mod bar_settings;
 pub mod keybinds;
 pub mod keysyms;
 pub mod settings;
@@ -5,6 +6,7 @@ pub mod start_hooks;
 pub mod workspace_settings;
 
 pub use crate::errors::WmResult;
+pub use bar_settings::*;
 pub use keybinds::*;
 pub use settings::*;
 pub use start_hooks::*;
@@ -16,9 +18,10 @@ pub use workspace_settings::*;
 #[allow(unused)]
 pub struct Config {
     pub keybinds: Keybinds,
-    pub options: Options,
+    pub options: Settings,
     pub start_hooks: StartHooks,
     pub workspace_settings: AllWorkspaceSettings,
+    pub bar_settings: AllBarSettings,
     pub path: String,
 }
 

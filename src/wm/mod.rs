@@ -11,6 +11,7 @@ use crate::{
 
 pub mod actions;
 pub mod atoms;
+pub mod bar;
 pub mod container;
 pub mod focus_stack;
 pub mod geometry;

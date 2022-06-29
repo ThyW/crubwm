@@ -2,7 +2,7 @@ use crate::config::Repr;
 use crate::errors::WmResult;
 
 #[derive(Debug, Clone)]
-pub struct Options {
+pub struct Settings {
     /// Should a window border be shown on the given side of the window?
     ///
     /// Default: disabled for all
@@ -60,7 +60,7 @@ pub struct Options {
     pub gap_right_size: u32,
 }
 
-impl Default for Options {
+impl Default for Settings {
     fn default() -> Self {
         Self {
             border: true,
@@ -85,7 +85,7 @@ impl Default for Options {
     }
 }
 
-impl Options {
+impl Settings {
     pub fn add(&mut self, name: String, value: String) -> WmResult {
         match name.as_ref() {
             "border" => {
@@ -218,7 +218,7 @@ impl Options {
     }
 }
 
-impl Repr for Options {
+impl Repr for Settings {
     fn repr(&self) -> WmResult<String> {
         let mut buffer = String::new();
         let options = format!("{:#?}", self);
@@ -267,7 +267,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_border_parsing() {
-        let mut c = Options::default();
+        let mut c = Settings::default();
 
         c.border_color = "#ffffff".to_string();
         assert_ne!(c.convert_border_color(), 0);
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_repr() {
-        let options = Options::default();
+        let options = Settings::default();
 
         println!("{}", options.repr().unwrap())
     }

@@ -148,9 +148,9 @@ impl Client {
         let bytes = self.attributes.border_color.to_le_bytes();
 
         (
-            (bytes[0] as u16) << 8,
-            (bytes[1] as u16) << 8,
-            (bytes[2] as u16) << 8,
+            (bytes[2] as u16) << 8 | (bytes[2] as u16),
+            (bytes[1] as u16) << 8 | (bytes[1] as u16),
+            (bytes[0] as u16) << 8 | (bytes[0] as u16),
         )
     }
 
@@ -174,9 +174,9 @@ impl Client {
         let pixel = connection
             .alloc_color(
                 default_colormap,
-                border_colors.0.into(),
-                border_colors.1.into(),
-                border_colors.2.into(),
+                border_colors.0,
+                border_colors.1,
+                border_colors.2,
             )?
             .reply()?
             .pixel;
@@ -445,7 +445,7 @@ impl ContainerList {
             };
             return Err(format!("container list error: wrong container id -> {b}").into());
         }
-        return Err(format!("container list error: wrong container id -> {a}").into());
+        Err(format!("container list error: wrong container id -> {a}").into())
     }
 
     /// Given a `ContainerId`, remove it from the container list, returning the client.
@@ -457,7 +457,7 @@ impl ContainerList {
             }
             return Err(format!("container list error: unable to find {c}").into());
         }
-        return Err(format!("container list error: unable to remove {c}").into());
+        Err(format!("container list error: unable to remove {c}").into())
     }
 
     /// Mutably iterate over the `Container`s in the container list.
@@ -485,7 +485,7 @@ impl ContainerList {
         if let Some(i) = self.inner_find(c) {
             return Ok(&mut self.containers[i]);
         }
-        return Err(format!("container list error: unable to find {}", c).into());
+        Err(format!("container list error: unable to find {}", c).into())
     }
 
     /// Given a `ContainerId`, return a result containing an immutable reference to that `Container`.
@@ -494,7 +494,7 @@ impl ContainerList {
         if let Some(i) = self.inner_find(c) {
             return Ok(&self.containers[i]);
         }
-        return Err(format!("container list error: unable to find {c}").into());
+        Err(format!("container list error: unable to find {c}").into())
     }
 
     /// Given an X window id(u32), return the `ContainerId` of the `Container`, which holds the client
@@ -509,10 +509,7 @@ impl ContainerList {
             }
         }
 
-        return Err(format!(
-            "container list node: unable to find a container for window id: {wid}"
-        )
-        .into());
+        Err(format!("container list node: unable to find a container for window id: {wid}").into())
     }
 
     /// Given a process id, return the `ContainerId` of the `Container`, which holds the client
@@ -527,10 +524,7 @@ impl ContainerList {
             }
         }
 
-        return Err(format!(
-            "container list node: unable to find a container for window id: {pid}"
-        )
-        .into());
+        Err(format!("container list node: unable to find a container for window id: {pid}").into())
     }
 
     /// Return an immutable reference to the next `Container` in the list, given a `ContainerId`.

@@ -197,9 +197,9 @@ impl ConfigParser {
                     } => {
                         ret.start_hooks.add(hook_type, hook_args, hook_option)?;
                     }
-                    ConfigLine::Option {
-                        option_name,
-                        option_value,
+                    ConfigLine::Setting {
+                        setting_name: option_name,
+                        setting_value: option_value,
                     } => {
                         ret.options.add(option_name, option_value)?;
                     }
@@ -212,6 +212,17 @@ impl ConfigParser {
                             workspace_identifier.parse::<u32>()?,
                             workspace_setting_name,
                             workspace_setting_value,
+                        )?;
+                    }
+                    ConfigLine::BarSetting {
+                        bar_identifier,
+                        bar_setting_name,
+                        bar_setting_values,
+                    } => {
+                        ret.bar_settings.add(
+                            bar_identifier.parse::<u32>()?,
+                            bar_setting_name,
+                            bar_setting_values,
                         )?;
                     }
                 }
@@ -255,16 +266,21 @@ enum ConfigLine {
         hook_option: String,
     },
     /// An option line which represents a single setting such as window border color
-    Option {
+    Setting {
         /// Name of the option
-        option_name: String,
+        setting_name: String,
         /// Value of the option
-        option_value: String,
+        setting_value: String,
     },
     WorkspaceSetting {
         workspace_identifier: String,
         workspace_setting_name: String,
         workspace_setting_value: Vec<String>,
+    },
+    BarSetting {
+        bar_identifier: String,
+        bar_setting_name: String,
+        bar_setting_values: Vec<String>,
     },
 }
 
@@ -287,9 +303,9 @@ impl TryFrom<String> for ConfigLine {
             let rest_of_line = s;
             let parser = LineParser::parse(rest_of_line.to_string());
 
-            return Ok(Self::Option {
-                option_name: parser.0[0].clone(),
-                option_value: parser.0[1].clone(),
+            return Ok(Self::Setting {
+                setting_name: parser.0[0].clone(),
+                setting_value: parser.0[1].clone(),
             });
         } else if let Some(s) = line.strip_prefix("hook ") {
             let rest_of_line = s;
@@ -308,6 +324,15 @@ impl TryFrom<String> for ConfigLine {
                 workspace_identifier: parser.0[0].clone(),
                 workspace_setting_name: parser.0[1].clone(),
                 workspace_setting_value: parser.0[2..].to_vec(),
+            });
+        } else if let Some(s) = line.strip_prefix("bar_set ") {
+            let rest_of_line = s;
+            let parser = LineParser::parse(rest_of_line.to_string());
+
+            return Ok(Self::BarSetting {
+                bar_identifier: parser.0[0].clone(),
+                bar_setting_name: parser.0[1].clone(),
+                bar_setting_values: parser.0[2..].to_vec(),
             });
         } else if line.starts_with('#') {
             return Ok(Self::Comment(line));

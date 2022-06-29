@@ -65,7 +65,7 @@ impl Monitor {
             }
             self.open_workspace = Some(new_id);
             Ok(())
-        } else if let Some(workspace_id) = self.workspaces.get(0) {
+        } else if let Some(workspace_id) = self.workspaces.first() {
             self.open_workspace = Some(*workspace_id);
             Ok(())
         } else {

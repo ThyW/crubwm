@@ -49,10 +49,15 @@ pub struct State {
     default_colormap: u32,
 }
 
+// Mask for any key
 const ANY_KEY_MASK: u8 = 0;
+// Mask for any mod key
 const ANY_MOD_KEY_MASK: u16 = 32768;
+// Window minimal width
 const MIN_WIDTH: u16 = 160;
+// Window minimal height
 const MIN_HEIGHT: u16 = 90;
+// Dragging speed
 const DRAG_SPEED_COEFFICIENT: f32 = 1.5;
 
 impl State {
@@ -159,6 +164,7 @@ impl State {
         Ok(geom)
     }
 
+    /// Return the X id of the default colormap
     fn default_colormap(&self) -> u32 {
         self.default_colormap
     }
@@ -730,28 +736,7 @@ impl State {
                     if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
                         c.geometry.x -= diff.0;
                         c.geometry.y -= diff.1;
-
-                        connection.configure_window(c.window_id(), &c.geometry().into())?;
-                        let border_colors = c.border_color();
-                        let border_size = c.border_width();
-                        let pixel = connection
-                            .alloc_color(
-                                default_colormap,
-                                border_colors.0.into(),
-                                border_colors.1.into(),
-                                border_colors.2.into(),
-                            )?
-                            .reply()?
-                            .pixel;
-                        connection.change_window_attributes(
-                            c.window_id(),
-                            &ChangeWindowAttributesAux::new().border_pixel(pixel),
-                        )?;
-                        connection.configure_window(
-                            c.window_id(),
-                            &ConfigureWindowAux::new().border_width(Some(border_size)),
-                        )?;
-                        connection.free_colors(default_colormap, 0, &[pixel])?;
+                        c.draw_borders(connection, default_colormap)?;
                     }
                     self.is_dragging = false
                 }
@@ -770,27 +755,7 @@ impl State {
                     if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
                         c.geometry.width = w as u16;
                         c.geometry.height = h as u16;
-                        connection.configure_window(c.window_id(), &c.geometry.into())?;
-                        let border_colors = c.border_color();
-                        let border_size = c.border_width();
-                        let pixel = connection
-                            .alloc_color(
-                                default_colormap,
-                                border_colors.0.into(),
-                                border_colors.1.into(),
-                                border_colors.2.into(),
-                            )?
-                            .reply()?
-                            .pixel;
-                        connection.change_window_attributes(
-                            c.window_id(),
-                            &ChangeWindowAttributesAux::new().border_pixel(pixel),
-                        )?;
-                        connection.configure_window(
-                            c.window_id(),
-                            &ConfigureWindowAux::new().border_width(Some(border_size)),
-                        )?;
-                        connection.free_colors(default_colormap, 0, &[pixel])?;
+                        c.draw_borders(connection, default_colormap)?;
                     }
                     self.is_resizing = false
                 }
@@ -833,27 +798,7 @@ impl State {
                 c.geometry.x -= diff.0 as i16;
                 c.geometry.y -= diff.1 as i16;
 
-                connection.configure_window(c.window_id(), &c.with_borders().0.into())?;
-                let border_colors = c.border_color();
-                let border_size = c.border_width();
-                let pixel = connection
-                    .alloc_color(
-                        default_colormap,
-                        border_colors.0.into(),
-                        border_colors.1.into(),
-                        border_colors.2.into(),
-                    )?
-                    .reply()?
-                    .pixel;
-                connection.change_window_attributes(
-                    c.window_id(),
-                    &ChangeWindowAttributesAux::new().border_pixel(pixel),
-                )?;
-                connection.configure_window(
-                    c.window_id(),
-                    &ConfigureWindowAux::new().border_width(Some(border_size)),
-                )?;
-                connection.free_colors(default_colormap, 0, &[pixel])?;
+                c.draw_borders(connection, default_colormap)?;
             }
             container.change_last_position((ev.root_x, ev.root_y))
         } else if resizing {
@@ -870,7 +815,7 @@ impl State {
             if let crate::wm::container::ContainerType::Floating(c) = container.data_mut() {
                 c.geometry.width = w as u16;
                 c.geometry.height = h as u16;
-                c.draw_borders(connection.clone(), default_colormap)?;
+                c.draw_borders(connection, default_colormap)?;
             }
             container.change_last_position((ev.root_x - diff.0 as i16, ev.root_y - diff.1 as i16));
         }
@@ -961,7 +906,7 @@ impl State {
             let workspace = self.get_focused_workspace_mut()?;
             let container = workspace.find_by_window_id(window)?;
             let container_id = container.id();
-            let layout = workspace.current_layout().clone();
+            let layout = *workspace.current_layout();
 
             let container_to_focus_option = match direction {
                 Direction::Next => Some(workspace.next_container(*container_id)),

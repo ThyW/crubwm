@@ -88,9 +88,7 @@ impl TryFrom<&str> for LayoutType {
             "tilingequalvertical" => Ok(Self::TilingEqualVertical),
             "tilingmasterstack" => Ok(Self::TilingMasterStack),
             _ => {
-                return Err(
-                    format!("layout error: \"{str}\" is not recognized as a valid layout.").into(),
-                )
+                Err(format!("layout error: \"{str}\" is not recognized as a valid layout.").into())
             }
         }
     }
@@ -251,31 +249,28 @@ impl<'a> Layout<'a> for LayoutType {
                     return Ok(());
                 }
 
-                for container in cs.1.into_iter() {
-                    match container.data_mut() {
-                        ContainerType::InLayout(c) => {
-                            if let Some(focused_client) = focused_clinet {
-                                if focused_client == c.window_id() {
-                                    c.geometry.x = screen.x;
-                                    c.geometry.y = screen.y;
-                                    c.geometry.width = screen.width;
-                                    c.geometry.height = screen.height;
+                for container in cs.1 {
+                    if let ContainerType::InLayout(c) = container.data_mut() {
+                        if let Some(focused_client) = focused_clinet {
+                            if focused_client == c.window_id() {
+                                c.geometry.x = screen.x;
+                                c.geometry.y = screen.y;
+                                c.geometry.width = screen.width;
+                                c.geometry.height = screen.height;
 
-                                    c.draw_borders(connection.clone(), default_colormap)?;
-                                    connection.map_subwindows(c.window_id())?;
-                                    connection.map_window(c.window_id())?;
-                                } else {
-                                    c.geometry.x = screen.x;
-                                    c.geometry.y = screen.y;
-                                    c.geometry.width = screen.width;
-                                    c.geometry.height = screen.height;
+                                c.draw_borders(connection.clone(), default_colormap)?;
+                                connection.map_subwindows(c.window_id())?;
+                                connection.map_window(c.window_id())?;
+                            } else {
+                                c.geometry.x = screen.x;
+                                c.geometry.y = screen.y;
+                                c.geometry.width = screen.width;
+                                c.geometry.height = screen.height;
 
-                                    connection.unmap_subwindows(c.window_id())?;
-                                    connection.unmap_window(c.window_id())?;
-                                }
+                                connection.unmap_subwindows(c.window_id())?;
+                                connection.unmap_window(c.window_id())?;
                             }
                         }
-                        _ => (),
                     }
                 }
 

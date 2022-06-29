@@ -55,3 +55,7 @@ hook "startup" sync "xsetroot -solid '#ffffff'"
 workspace_set 1 name "hello_world"
 workspace_set 1 allowed_layouts "all"
 workspace_set 1 monitor "0"
+
+# bar settings
+bar_set 0 monitor "0"
+bar_set 0 widget add "time" command "date +%H:%M" icon "TIME" update_time "3" font "Iosevka"
