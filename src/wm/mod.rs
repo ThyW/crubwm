@@ -28,7 +28,6 @@ fn print_help_message() {
     println!("  --config [PATH]\t\tUse a different config file.");
 }
 
-#[allow(dead_code)]
 /// The WM struct, holding all the necessary state and information for and about the operation of
 /// the window manager.
 pub struct Wm {
@@ -70,6 +69,8 @@ impl Wm {
         self.config.start_hooks.run()?;
         // instantiate workspaces
         self.state.init_workspaces()?;
+        // after setting up monitors and workspaces, setup up status bar
+        self.state.setup_bar()?;
         // check for all open windows and manage them
         self.state.become_wm()?;
         // notify the window manager of the keybinds
@@ -78,6 +79,7 @@ impl Wm {
         // run the event loop, don't stop on errors, just report them and keep going.
         loop {
             self.state.connection().flush()?;
+            self.state.update_bars()?;
             let event = self.state.connection().wait_for_event()?;
 
             let mut event_option = Some(event);

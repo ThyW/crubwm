@@ -1,24 +1,27 @@
+use cairo::{XCBConnection as CairoConnection, XCBDrawable, XCBSurface, XCBVisualType};
 use x11::xlib::{Display, XOpenDisplay};
 use x11rb::{
-    connect,
     connection::Connection,
     protocol::{
         randr::get_monitors,
         xproto::{
-            ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt, EventMask,
-            FocusInEvent, GrabMode, InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode,
+            ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
+            CreateWindowAux, EventMask, FocusInEvent, GrabMode, InputFocus, KeyPressEvent,
+            KeyReleaseEvent, Screen, StackMode, WindowClass,
         },
     },
-    rust_connection::RustConnection,
+    xcb_ffi::XCBConnection,
     CURRENT_TIME, NONE,
 };
 
 use crate::{
     config::{Config, Keybinds},
     errors::{Error, WmResult},
+    ffi::find_xcb_visualtype,
     parsers::ConfigParser,
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
+    wm::bar::Bar,
     wm::container::{Client, ClientId, CT_MASK_TILING},
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
@@ -28,12 +31,13 @@ use crate::{
     wm::workspace::{Workspace, WorkspaceId},
 };
 
+use std::ffi::CStr;
 use std::{collections::HashMap, rc::Rc};
 
 use super::{atoms::AtomStruct, container::ContainerType, layouts::LayoutType};
 
 pub struct State {
-    connection: Rc<RustConnection>,
+    connection: Rc<XCBConnection>,
     dpy: *mut Display,
     screen_index: usize,
     workspaces: Workspaces,
@@ -47,6 +51,10 @@ pub struct State {
     monitors: Vec<Monitor>,
     floating_modifier: u16,
     default_colormap: u32,
+    xcb_connection: Rc<CairoConnection>,
+    _cairo_visual: Rc<XCBVisualType>,
+    bar_windows: Vec<u32>,
+    bars: Vec<Bar>,
 }
 
 // Mask for any key
@@ -66,7 +74,8 @@ impl State {
     /// If a name of the display is given, use that display, otherwise use the display from the
     /// DISPLAY environmental variable.
     pub fn new(name: Option<&str>, config: Rc<Config>) -> WmResult<Self> {
-        let (connection, screen_index) = connect(name)?;
+        let (connection, screen_index) =
+            XCBConnection::connect(name.map(|s| unsafe { CStr::from_ptr(s.as_ptr() as _) }))?;
         let display = unsafe {
             if let Some(name_string) = name {
                 let c_string = std::ffi::CString::new(name_string)?;
@@ -78,6 +87,16 @@ impl State {
         if display.is_null() {
             return Err("x11 error: unable to open a connetion to X server.".into());
         }
+
+        let xcb_connection =
+            unsafe { CairoConnection::from_raw_none(connection.get_raw_xcb_connection() as _) };
+        let mut visual_ffi = find_xcb_visualtype(
+            &connection,
+            connection.setup().roots[screen_index].root_visual,
+        )
+        .unwrap();
+        println!("Visual type {:?}", visual_ffi);
+        let visual = unsafe { XCBVisualType::from_raw_none(&mut visual_ffi as *mut _ as _) };
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
@@ -97,7 +116,7 @@ impl State {
         let atoms = AtomManager::init_atoms(&connection)?;
 
         Ok(Self {
-            connection: Rc::<RustConnection>::new(connection),
+            connection: Rc::<XCBConnection>::new(connection),
             dpy: display,
             screen_index,
             workspaces: Vec::new(),
@@ -111,6 +130,10 @@ impl State {
             monitors: Vec::new(),
             floating_modifier: 64,
             default_colormap,
+            xcb_connection: Rc::new(xcb_connection),
+            _cairo_visual: Rc::new(visual),
+            bar_windows: Vec::new(),
+            bars: Vec::new(),
         })
     }
 
@@ -172,13 +195,9 @@ impl State {
     /// Go through all workspaces, if they contain a given window: return the reference to the
     /// workspace, otherwise don't return anything.
     fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
-        for workspace in &self.workspaces {
-            if workspace.contains_window(wid) {
-                return Some(workspace);
-            }
-        }
-
-        None
+        self.workspaces
+            .iter()
+            .find(|workspace| workspace.contains_window(wid))
     }
 
     // Get a pointer to Xlib display structure. This method is used for handling keyboard
@@ -190,36 +209,26 @@ impl State {
     /// Go through all workspaces, if they contain a given window: return a mutable reference to the
     /// workspace, otherwise don't return anything.
     fn workspace_for_window_mut(&mut self, wid: u32) -> Option<&mut Workspace> {
-        for workspace in self.workspaces.iter_mut() {
-            if workspace.contains_window(wid) {
-                return Some(workspace);
-            }
-        }
-
-        None
+        self.workspaces
+            .iter_mut()
+            .find(|workspace| workspace.contains_window(wid))
     }
 
     /// Search for and return a reference to a workspace with the given workspace id.
     fn workspace_with_id<I: Into<WorkspaceId> + Copy>(&self, id: I) -> Option<&Workspace> {
-        for workspace in &self.workspaces {
-            if workspace.id == id.into() {
-                return Some(workspace);
-            }
-        }
-
-        None
+        self.workspaces
+            .iter()
+            .find(|workspace| workspace.id == id.into())
     }
 
     /// Search for and return a reference to a workspace with the given workspace id.
-    fn workspace_with_id_mut<I: Into<WorkspaceId>>(&mut self, id: I) -> Option<&mut Workspace> {
-        let id = id.into();
-        for workspace in &mut self.workspaces {
-            if workspace.id == id {
-                return Some(workspace);
-            }
-        }
-
-        None
+    fn workspace_with_id_mut<I: Into<WorkspaceId> + Copy>(
+        &mut self,
+        id: I,
+    ) -> Option<&mut Workspace> {
+        self.workspaces
+            .iter_mut()
+            .find(|workspace| workspace.id == id.into())
     }
 
     /// Generate a new client identifier.
@@ -229,7 +238,7 @@ impl State {
     }
 
     /// Get a referecnce to the underlying X connection.
-    pub fn connection(&self) -> Rc<RustConnection> {
+    pub fn connection(&self) -> Rc<impl Connection> {
         self.connection.clone()
     }
 
@@ -290,6 +299,152 @@ impl State {
             current_monitor_id += 1;
             let monitor = Monitor::from_monitor_info(monitor_info, current_monitor_id)?;
             self.monitors.push(monitor)
+        }
+
+        Ok(())
+    }
+
+    /// Create and setup status bar windows based on the status bar settings.
+    pub fn setup_bar(&mut self) -> WmResult {
+        let mut bars = Vec::new();
+        // intitial bar construction
+        for bar_settings in self.config.bar_settings.clone().into_iter() {
+            bars.push(Bar::new(
+                bar_settings.identifier,
+                bar_settings.monitor,
+                &bar_settings,
+            )?);
+        }
+        // setup bars on different monitors
+        for bar in bars.iter_mut() {
+            let monitor = self
+                .monitors
+                .iter()
+                .find(|monitor| monitor.id() == bar.monitor() + 1)
+                .ok_or_else(|| {
+                    Error::Generic(format!(
+                        "Status bar error: No monitor with id {}.",
+                        bar.monitor()
+                    ))
+                })?;
+            let monitor_geometry = monitor.size();
+            let mut bar_workspace_ids: Vec<u32> = self
+                .config
+                .workspace_settings
+                .clone()
+                .into_iter()
+                .filter(|ws| ws.monitor.parse::<u32>().unwrap_or(0) == bar.monitor())
+                .map(|ws| ws.identifier)
+                .collect();
+            // TODO
+            // tell the bar what workspaces to display
+            bar.create_workspaces(
+                bar_workspace_ids
+                    .iter_mut()
+                    .map(|id| (id.to_string(), *id))
+                    .collect(),
+            );
+
+            // initialize bar commands
+            bar.update_widgets()?;
+
+            // create bar windows and do all the necessary graphical setup
+            //  - [x] setup a raw xcb connection
+            //  - [x] find visual
+            //  - [x] instantiate all the stuff
+            //  - [x] create windows
+            //  - [x] map window
+            //  - [x] draw the segments
+
+            let window_id = self.connection().generate_id()?;
+            let screen = self.connection().setup().roots[self.screen_index].clone();
+            let values = CreateWindowAux::new()
+                .background_pixel(screen.black_pixel)
+                .border_pixel(screen.black_pixel)
+                .event_mask(
+                    EventMask::STRUCTURE_NOTIFY | EventMask::EXPOSURE | EventMask::KEY_PRESS,
+                );
+            self.connection().create_window(
+                screen.root_depth,
+                window_id,
+                screen.root,
+                monitor_geometry.x,
+                monitor_geometry.y,
+                monitor_geometry.width,
+                bar.settings()?.height as _, // this should be changed, it should be calculated from the bar font
+                0,
+                WindowClass::INPUT_OUTPUT,
+                screen.root_visual,
+                &values,
+            )?;
+            let mut visual_ffi = find_xcb_visualtype(
+                self.connection.as_ref(),
+                self.connection().setup().roots[self.screen_index].root_visual,
+            )
+            .unwrap();
+            let visual = unsafe { XCBVisualType::from_raw_none(&mut visual_ffi as *mut _ as _) };
+
+            let surface = XCBSurface::create(
+                &self.xcb_connection,
+                &XCBDrawable(window_id),
+                &visual,
+                monitor_geometry.width.into(),
+                bar.settings()?.height.try_into().unwrap_or(15),
+            )?;
+
+            bar.set_surface(surface);
+            bar.set_window_id(window_id);
+            if let Ok(h) = bar.get_height() {
+                self.connection().configure_window(
+                    window_id,
+                    &ConfigureWindowAux::new()
+                        .height(h)
+                        .stack_mode(StackMode::ABOVE),
+                )?;
+                let surface = XCBSurface::create(
+                    &self.xcb_connection,
+                    &XCBDrawable(window_id),
+                    &visual,
+                    monitor_geometry.width as _,
+                    h as _,
+                )?;
+                bar.set_surface(surface);
+                let mut geom = monitor_geometry.clone();
+                geom.height = h as _;
+                bar.set_geometry(geom)
+            }
+            self.bar_windows.push(window_id);
+            self.connection().map_window(window_id)?;
+            self.connection().flush()?;
+
+            // set it up with mainloop so that it works properly
+        }
+
+        self.bars = bars;
+
+        Ok(())
+    }
+
+    /// Update and redraw all bar windows.
+    pub fn update_bars(&mut self) -> WmResult {
+        for bar in self.bars.iter_mut() {
+            #[cfg(debug_assertions)]
+            println!("bar monitor id: {}, monitors: {:#?}", bar.monitor(), self.monitors);
+            let monitors: Vec<&Monitor> = self
+                .monitors
+                .iter()
+                .filter(|mon| mon.id() == bar.monitor() + 1)
+                .collect();
+            if let Some(monitor) = monitors.first() {
+                #[cfg(debug_assertions)]
+                println!("done!");
+                if let Ok(ws) = monitor.get_open_workspace() {
+                    bar.update(self.focused_workspace, Some(ws), "DEBUG".to_string())?
+                } else {
+                    bar.update(self.focused_workspace, None, "DEBUG".to_string())?
+                }
+            }
+            bar.redraw()?
         }
 
         Ok(())
@@ -492,6 +647,19 @@ impl State {
         Err("Workspace is not located in any monitor.".into())
     }
 
+    /// Retrun an immutable reference to the monitor which the workspace with the given id is
+    /// currently on.
+    #[allow(unused)]
+    fn monitor_for_workspace(&self, workspace_id: WorkspaceId) -> WmResult<&Monitor> {
+        for monitor in self.monitors.iter() {
+            if monitor.contains(&workspace_id) {
+                return Ok(monitor);
+            }
+        }
+
+        Err("Workspace is not located in any monitor.".into())
+    }
+
     /// Return a mutable reference to the monitor given its id.
     fn monitor_with_id_mut(&mut self, id: u32) -> WmResult<&mut Monitor> {
         for monitor in self.monitors.iter_mut() {
@@ -524,6 +692,11 @@ impl State {
         let geometry = self.connection().get_geometry(window)?.reply()?;
         let new_client_id = self.new_client_id();
         let default_colormap = self.default_colormap();
+        let bar_windows = self.bar_windows.clone();
+
+        if bar_windows.contains(&window) {
+            return Ok(());
+        }
 
         let workspace = self.get_workspace_under_cursor_mut()?;
         let id = workspace.id;
@@ -887,7 +1060,7 @@ impl State {
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
-                let pid: u32 = pid_atom.get_property(window, &self.connection())?[0]
+                let pid: u32 = pid_atom.get_property(window, self.connection())?[0]
                     .clone()
                     .try_into()?;
                 let _ = std::process::Command::new("kill")

@@ -1,5 +1,7 @@
+#![feature(iter_collect_into)]
 mod config;
 mod errors;
+mod ffi;
 mod parsers;
 mod wm;
 

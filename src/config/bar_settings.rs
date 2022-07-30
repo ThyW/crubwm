@@ -22,8 +22,8 @@ pub struct WidgetSettings {
     pub update_time: u32,
     /// Font of the widget.
     pub font: String,
-    /// Position of the segment
-    pub position: String,
+    /// Text which separates two widgets from one another.
+    pub separator: String,
 }
 
 impl Default for WidgetSettings {
@@ -34,7 +34,7 @@ impl Default for WidgetSettings {
             command: "".into(),
             update_time: 0,
             font: "monospace".into(),
-            position: "right".into(),
+            separator: "|".into(),
         }
     }
 }
@@ -51,8 +51,6 @@ pub struct WorkspaceSegmentSettings {
     pub normal_background_color: String,
     /// Font used to display workspace segement text(Workspace name and id).
     pub font: String,
-    /// Position of the segment
-    pub position: String,
 }
 
 impl Default for WorkspaceSegmentSettings {
@@ -63,7 +61,6 @@ impl Default for WorkspaceSegmentSettings {
             normal_foreground_color: "#ffffff".to_string(),
             normal_background_color: "#333333".to_string(),
             font: "monospace".to_string(),
-            position: "left".to_string(),
         }
     }
 }
@@ -76,8 +73,6 @@ pub struct WindowTitleSettings {
     pub foreground_color: String,
     /// Background color for the window title.
     pub background_color: String,
-    /// Position of the segment.
-    pub position: String,
 }
 
 impl Default for WindowTitleSettings {
@@ -86,22 +81,16 @@ impl Default for WindowTitleSettings {
             font: "monospace".into(),
             foreground_color: "#ffffff".into(),
             background_color: "00a2ff".into(),
-            position: "middle".into(),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct IconTraySettings {
-    /// Position of the segment.
-    pub position: String,
-}
+pub struct IconTraySettings {}
 
 impl Default for IconTraySettings {
     fn default() -> Self {
-        Self {
-            position: "right".into(),
-        }
+        Self {}
     }
 }
 
@@ -112,14 +101,36 @@ pub struct BarSettings {
     /// monitor id of the bar
     pub monitor: u32,
     /// All the widget settings for the given monitor.
-    pub widget_segment: Option<Vec<WidgetSettings>>,
-    /// Workspace settings for the given monitor.
-    pub workspace_segment: Option<WorkspaceSegmentSettings>,
-    /// Window title settings for the given monitor.
-    pub title_segment: Option<WindowTitleSettings>,
-    // TODO: maybe have some settings
-    /// Icon trya segment.
-    pub icon_tray: Option<IconTraySettings>,
+    pub segments: Vec<SegmentSettings>,
+    /// Size of all fonts used in the bar.
+    pub font_size: u32,
+    /// Height of the bar.
+    pub height: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SegmentSettings {
+    pub segment_type: SegmentSettingsType,
+    pub position: String,
+    pub name: String,
+}
+
+impl SegmentSettings {
+    fn new(segment_type: SegmentSettingsType, position: String, name: String) -> Self {
+        Self {
+            segment_type,
+            position,
+            name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SegmentSettingsType {
+    Widget(Vec<WidgetSettings>),
+    Workspace(WorkspaceSegmentSettings),
+    Title(WindowTitleSettings),
+    IconTray(IconTraySettings),
 }
 
 impl BarSettings {
@@ -127,10 +138,9 @@ impl BarSettings {
         Self {
             identifier,
             monitor: 1,
-            widget_segment: None,
-            workspace_segment: None,
-            title_segment: None,
-            icon_tray: None,
+            segments: Vec::new(),
+            font_size: 10,
+            height: 15,
         }
     }
 }
@@ -154,23 +164,71 @@ impl AllBarSettings {
         };
 
         match &bar_setting_name[..] {
+            "segment" => {
+                if &bar_setting_values[0] == "add" {
+                    match &bar_setting_values.get(1).ok_or_else(|| Error::Generic("missing new segment type".into()))?[..] {
+                        // bar_set 0 segment add "widget" "wiget1" "right"
+                        "widget" => {
+                            #[cfg(debug_assertions)]
+                            println!("{bar_setting_values:#?}");
+                            let name = bar_setting_values.get(2).ok_or_else(|| Error::Generic("missing new  widget segment name".into()))?;
+                            if let Ok(position_value) = bar_setting_values.get(3).ok_or_else(|| Error::Generic("Missing position specification for new segment.".into())) {
+                                if POSITIONS.contains(&position_value.as_str()) {
+                                    let widget_segment = SegmentSettings::new(SegmentSettingsType::Widget(Default::default()), position_value.clone(), name.clone());
+                                    bar.segments.push(widget_segment);
+                                }
+                            }
+                        }
+                        "workspace" => {
+                            let name = bar_setting_values.get(2).ok_or_else(|| Error::Generic("missing new workspace segment name".into()))?;
+                            if let Ok(position_value) = bar_setting_values.get(3).ok_or_else(|| Error::Generic("Missing position specification for new segment.".into())) {
+                                if POSITIONS.contains(&position_value.as_str()) {
+                                    let widget_segment = SegmentSettings::new(SegmentSettingsType::Workspace(Default::default()), position_value.clone(), name.clone());
+                                    bar.segments.push(widget_segment);
+                                }
+                            }
+                        }
+                        "title" => {
+                            let name = bar_setting_values.get(2).ok_or_else(|| Error::Generic("missing new window title segment name".into()))?;
+                            if let Ok(position_value) = bar_setting_values.get(3).ok_or_else(|| Error::Generic("Missing position specification for new segment.".into())) {
+                                if POSITIONS.contains(&position_value.as_str()) {
+                                    let widget_segment = SegmentSettings::new(SegmentSettingsType::Title(Default::default()), position_value.clone(), name.clone());
+                                    bar.segments.push(widget_segment);
+                                }
+                            }
+                        }
+                        "icon_tray" => {
+                            let name = bar_setting_values.get(2).ok_or_else(|| Error::Generic("missing new icon tray segment name".into()))?;
+                            if let Ok(position_value) = bar_setting_values.get(3).ok_or_else(|| Error::Generic("Missing position specification for new segment.".into())) {
+                                if POSITIONS.contains(&position_value.as_str()) {
+                                    let widget_segment = SegmentSettings::new(SegmentSettingsType::IconTray(Default::default()), position_value.clone(), name.clone());
+                                    bar.segments.push(widget_segment);
+                                }
+                            }
+                        }
+                        x => return Err(format!("{x} is not recognized as a valid bar segment type.\nValid segment types are: 'widget', 'workspace', 'window_title', 'icon_tray'.").into())
+                    }
+                }
+            }
             "monitor" => {
                 bar.monitor = bar_setting_values[0].parse::<u32>()?;
             }
             "widget" => {
                 if &bar_setting_values[0] == "add" {
                     // bar_set 0 widget add "battery" icon "" command "acpi" font "Iosevka" update_time "5"
-                    let widget_segment = match &mut bar.widget_segment {
-                        Some(ws) => ws,
-                        None => {
-                            bar.widget_segment = Some(Vec::new());
-                            bar.widget_segment.as_mut().unwrap()
-                        }
-                    };
+                    let name = &bar_setting_values[1];
+
+                    let widget_segment = bar
+                        .segments
+                        .iter_mut()
+                        .find(|x| &x.name == name)
+                        .ok_or_else(|| {
+                            Error::Generic(format!("Widget segment {name} does not exist"))
+                        })?;
                     let name = bar_setting_values[1].clone();
                     let mut widget = WidgetSettings::default();
-                    for (mut ii, value) in bar_setting_values[1..].iter().enumerate() {
-                        ii += 1;
+                    for (mut ii, value) in bar_setting_values[2..].iter().enumerate() {
+                        ii += 2;
                         match &value[..] {
                             "icon" => {
                                 widget.icon = bar_setting_values
@@ -217,115 +275,106 @@ impl AllBarSettings {
                                     })?
                                     .to_string();
                             }
-                            "position" => {
-                                let val = bar_setting_values
+                            "separator" => {
+                                widget.separator = bar_setting_values
                                     .get(ii + 1)
                                     .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value"))
+                                        Error::Generic(format!("missing value for {value}"))
                                     })?
                                     .to_string();
-
-                                if POSITIONS.contains(&val.as_str()) {
-                                    widget.position = val;
-                                } else {
-                                    return Err(format!("'position' can only have the following values: left, right, middle; {val} is not one of them").into());
-                                }
                             }
                             _ => (),
                         }
                     }
-                    widget_segment.push(widget);
+                    if let SegmentSettingsType::Widget(widgets) = &mut widget_segment.segment_type {
+                        widgets.push(widget)
+                    }
                 }
             }
             "workspace" => {
                 if bar_setting_values[0] == "set" {
                     // bar_set 1 set workspace focused_fg "#ffffff" focused_bg "#11ff11" ...
-                    let workspace_segment = match &mut bar.workspace_segment {
-                        Some(ws) => ws,
-                        None => {
-                            bar.workspace_segment = Some(WorkspaceSegmentSettings::default());
-                            bar.workspace_segment.as_mut().unwrap()
-                        }
-                    };
+                    let name = &bar_setting_values[1];
+                    let workspace_segment = bar
+                        .segments
+                        .iter_mut()
+                        .find(|x| &x.name == name)
+                        .ok_or_else(|| {
+                            Error::Generic(format!("Unable to find workspace segment {name}"))
+                        })?;
 
-                    for (mut ii, value) in bar_setting_values[1..].iter().enumerate() {
-                        ii += 1;
-                        match &value[..] {
-                            "focused_bg" | "focused_background" | "focused_background_color" => {
-                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
-                                    if !next_val.starts_with('#') {
-                                        return Err(format!(
-                                            "{next_val} is not a correct value for {value}"
-                                        )
-                                        .into());
+                    if let SegmentSettingsType::Workspace(workspace_segment) =
+                        &mut workspace_segment.segment_type
+                    {
+                        for (mut ii, value) in bar_setting_values[2..].iter().enumerate() {
+                            ii += 2;
+                            match &value[..] {
+                                "focused_bg"
+                                | "focused_background"
+                                | "focused_background_color" => {
+                                    if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                        if !next_val.starts_with('#') {
+                                            return Err(format!(
+                                                "{next_val} is not a correct value for {value}"
+                                            )
+                                            .into());
+                                        }
+
+                                        workspace_segment.focused_background_color =
+                                            next_val.to_string();
                                     }
-
-                                    workspace_segment.focused_background_color =
-                                        next_val.to_string();
                                 }
-                            }
-                            "focused_fg" | "focused_foreground" | "focused_foreground_color" => {
-                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
-                                    if !next_val.starts_with('#') {
-                                        return Err(format!(
-                                            "{next_val} is not a correct value for {value}"
-                                        )
-                                        .into());
+                                "focused_fg"
+                                | "focused_foreground"
+                                | "focused_foreground_color" => {
+                                    if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                        if !next_val.starts_with('#') {
+                                            return Err(format!(
+                                                "{next_val} is not a correct value for {value}"
+                                            )
+                                            .into());
+                                        }
+
+                                        workspace_segment.focused_foreground_color =
+                                            next_val.to_string();
                                     }
-
-                                    workspace_segment.focused_foreground_color =
-                                        next_val.to_string();
                                 }
-                            }
-                            "normal_bg" | "normal_background" | "normal_background_color" => {
-                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
-                                    if !next_val.starts_with('#') {
-                                        return Err(format!(
-                                            "{next_val} is not a correct value for {value}"
-                                        )
-                                        .into());
+                                "normal_bg" | "normal_background" | "normal_background_color" => {
+                                    if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                        if !next_val.starts_with('#') {
+                                            return Err(format!(
+                                                "{next_val} is not a correct value for {value}"
+                                            )
+                                            .into());
+                                        }
+
+                                        workspace_segment.normal_background_color =
+                                            next_val.to_string();
                                     }
-
-                                    workspace_segment.normal_background_color =
-                                        next_val.to_string();
                                 }
-                            }
-                            "normal_fg" | "normal_foreground" | "normal_foreground_color" => {
-                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
-                                    if !next_val.starts_with('#') {
-                                        return Err(format!(
-                                            "{next_val} is not a correct value for {value}"
-                                        )
-                                        .into());
+                                "normal_fg" | "normal_foreground" | "normal_foreground_color" => {
+                                    if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                        if !next_val.starts_with('#') {
+                                            return Err(format!(
+                                                "{next_val} is not a correct value for {value}"
+                                            )
+                                            .into());
+                                        }
+
+                                        workspace_segment.normal_foreground_color =
+                                            next_val.to_string();
                                     }
-
-                                    workspace_segment.normal_foreground_color =
-                                        next_val.to_string();
                                 }
-                            }
-                            "font" => {
-                                workspace_segment.font = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value"))
-                                    })?
-                                    .to_string();
-                            }
-                            "position" => {
-                                let val = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value"))
-                                    })?
-                                    .to_string();
-
-                                if POSITIONS.contains(&val.as_str()) {
-                                    workspace_segment.position = val;
-                                } else {
-                                    return Err(format!("'position' can only have the following values: left, right, middle; {val} is not one of them").into());
+                                "font" => {
+                                    workspace_segment.font = bar_setting_values
+                                        .get(ii + 1)
+                                        .ok_or_else(|| {
+                                            Error::Generic(format!("{value} is missing a value"))
+                                        })?
+                                        .to_string();
                                 }
+                                _ => (),
                             }
-                            _ => (),
                         }
                     }
                 }
@@ -333,89 +382,73 @@ impl AllBarSettings {
             "title" => {
                 if &bar_setting_values[0][..] == "set" {
                     // bar_set title set fg "#ffffff" bg "#111111" font "Noto Sans"
-                    let title_segment = match &mut bar.title_segment {
-                        Some(ws) => ws,
-                        None => {
-                            bar.title_segment = Some(WindowTitleSettings::default());
-                            bar.title_segment.as_mut().unwrap()
-                        }
-                    };
+                    let name = &bar_setting_values[1];
 
-                    for (mut ii, value) in bar_setting_values[1..].iter().enumerate() {
-                        ii += 1;
-                        match &value[..] {
-                            "font" => {
-                                title_segment.font = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value."))
-                                    })?
-                                    .to_string();
-                            }
-                            "foreground_color" | "fg_color" | "fg" => {
-                                let val = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value."))
-                                    })?
-                                    .to_string();
+                    let title_segment = bar
+                        .segments
+                        .iter_mut()
+                        .find(|x| &x.name == name)
+                        .ok_or_else(|| {
+                            Error::Generic(format!("Unable to find segment with name {name}"))
+                        })?;
 
-                                if !val.starts_with('#') {
-                                    return Err(format!(
-                                        "{val} is not in the correct format, try using."
-                                    )
-                                    .into());
-                                } else {
-                                    title_segment.foreground_color = val;
+                    if let SegmentSettingsType::Title(title_segment) =
+                        &mut title_segment.segment_type
+                    {
+                        for (mut ii, value) in bar_setting_values[1..].iter().enumerate() {
+                            ii += 1;
+                            match &value[..] {
+                                "font" => {
+                                    title_segment.font = bar_setting_values
+                                        .get(ii + 1)
+                                        .ok_or_else(|| {
+                                            Error::Generic(format!("{value} is missing a value."))
+                                        })?
+                                        .to_string();
                                 }
-                            }
-                            "background_color" | "bg_color" | "bg" => {
-                                let val = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value."))
-                                    })?
-                                    .to_string();
+                                "foreground_color" | "fg_color" | "fg" => {
+                                    let val = bar_setting_values
+                                        .get(ii + 1)
+                                        .ok_or_else(|| {
+                                            Error::Generic(format!("{value} is missing a value."))
+                                        })?
+                                        .to_string();
 
-                                if !val.starts_with('#') {
-                                    return Err(format!(
-                                        "{val} is not in the correct format, try using."
-                                    )
-                                    .into());
-                                } else {
-                                    title_segment.background_color = val;
+                                    if !val.starts_with('#') {
+                                        return Err(format!(
+                                            "{val} is not in the correct format, try using."
+                                        )
+                                        .into());
+                                    } else {
+                                        title_segment.foreground_color = val;
+                                    }
                                 }
-                            }
-                            "position" => {
-                                let val = bar_setting_values
-                                    .get(ii + 1)
-                                    .ok_or_else(|| {
-                                        Error::Generic(format!("{value} is missing a value"))
-                                    })?
-                                    .to_string();
+                                "background_color" | "bg_color" | "bg" => {
+                                    let val = bar_setting_values
+                                        .get(ii + 1)
+                                        .ok_or_else(|| {
+                                            Error::Generic(format!("{value} is missing a value."))
+                                        })?
+                                        .to_string();
 
-                                if POSITIONS.contains(&val.as_str()) {
-                                    title_segment.position = val;
-                                } else {
-                                    return Err(format!("'position' can only have the following values: left, right, middle; {val} is not one of them").into());
+                                    if !val.starts_with('#') {
+                                        return Err(format!(
+                                            "{val} is not in the correct format, try using."
+                                        )
+                                        .into());
+                                    } else {
+                                        title_segment.background_color = val;
+                                    }
                                 }
+                                _ => (),
                             }
-                            _ => (),
                         }
                     }
                 }
             }
-            "tray" => {
-                if &bar_setting_values[0] == "set" {
-                    let tray_segment = match &mut bar.icon_tray {
-                        Some(it) => it,
-                        None => {
-                            bar.icon_tray = Some(IconTraySettings::default());
-                            bar.icon_tray.as_mut().unwrap()
-                        }
-                    };
-                }
-            }
+            "icon_tray" | "tray" => if &bar_setting_values[0] == "set" {},
+            "font_size" => bar.font_size = bar_setting_values[0].parse()?,
+            "height" => bar.height = bar_setting_values[0].parse()?,
             _ => {
                 return Err(
                     format!("bar settings error: no setting {bar_setting_name} exists.").into(),
@@ -423,5 +456,15 @@ impl AllBarSettings {
             }
         }
         Ok(())
+    }
+}
+
+impl IntoIterator for AllBarSettings {
+    type Item = BarSettings;
+
+    type IntoIter = std::vec::IntoIter<BarSettings>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }

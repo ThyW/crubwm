@@ -14,6 +14,20 @@ pub enum Error {
     BorrowMut(std::cell::BorrowMutError),
     Null(std::ffi::NulError),
     Fmt(std::fmt::Error),
+    SystemTime(std::time::SystemTimeError),
+    Cairo(cairo::Error),
+}
+
+impl From<cairo::Error> for Error {
+    fn from(e: cairo::Error) -> Self {
+        Self::Cairo(e)
+    }
+}
+
+impl From<std::time::SystemTimeError> for Error {
+    fn from(e: std::time::SystemTimeError) -> Self {
+        Self::SystemTime(e)
+    }
 }
 
 impl From<std::fmt::Error> for Error {
@@ -122,6 +136,8 @@ impl std::fmt::Display for Error {
             Self::Null(e) => write!(f, "[ERR] {}", e),
             Self::X11ReplyOrIdError(e) => write!(f, "[ERR] {}", e),
             Self::Fmt(e) => write!(f, "[ERR] {}", e),
+            Self::SystemTime(e) => write!(f, "[ERR] {}", e),
+            Self::Cairo(e) => write!(f, "[ERR] {}", e),
         }
     }
 }

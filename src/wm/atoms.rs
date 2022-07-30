@@ -1,10 +1,11 @@
 use crate::errors::WmResult;
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
+use x11rb::connection::Connection;
 use x11rb::protocol::xproto::AtomEnum;
 use x11rb::protocol::xproto::ConnectionExt;
-use x11rb::rust_connection::RustConnection;
 
 const MAX_VAL_NUMBER: u32 = 1024 * 4;
 
@@ -88,7 +89,7 @@ impl AtomStruct {
     pub fn get_property(
         &self,
         window: u32,
-        connection: &RustConnection,
+        connection: Rc<impl Connection>,
     ) -> WmResult<Vec<PropertyReturnValue>> {
         let mut ret = Vec::new();
 
@@ -120,7 +121,7 @@ impl AtomStruct {
 
 impl AtomManager {
     /// Initialize all atoms.
-    pub fn init_atoms(c: &RustConnection) -> WmResult<HashMap<String, AtomStruct>> {
+    pub fn init_atoms(c: &impl Connection) -> WmResult<HashMap<String, AtomStruct>> {
         let mut hm = HashMap::new();
         // https://en.wikipedia.org/wiki/Extended_Window_Manager_Hints
         let atoms = [

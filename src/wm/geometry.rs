@@ -1,3 +1,5 @@
+use std::ops::{Add, AddAssign};
+
 use crate::config::Config;
 use x11rb::protocol::xproto::{ConfigureWindowAux, GetGeometryReply};
 
@@ -65,5 +67,50 @@ impl From<Config> for ClientAttributes {
             border_size: border,
             border_color,
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Default)]
+pub struct TextExtents {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl From<cairo::TextExtents> for TextExtents {
+    fn from(o: cairo::TextExtents) -> Self {
+        Self {
+            width: o.width,
+            height: o.height,
+        }
+    }
+}
+
+impl TextExtents {
+    pub fn _new<I: Into<f64>>(width: I, height: I) -> Self {
+        Self {
+            width: width.into(),
+            height: height.into(),
+        }
+    }
+}
+
+impl Add for TextExtents {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        let width = self.width + rhs.width;
+        let mut height = self.height;
+        if rhs.height > self.height {
+            height = rhs.height;
+        }
+
+        Self { width, height }
+    }
+}
+
+impl AddAssign for TextExtents {
+    fn add_assign(&mut self, rhs: Self) {
+        let other = *self + rhs;
+        self.width = other.width;
+        self.height = other.height;
     }
 }
