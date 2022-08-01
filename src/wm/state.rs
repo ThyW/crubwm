@@ -95,7 +95,6 @@ impl State {
             connection.setup().roots[screen_index].root_visual,
         )
         .unwrap();
-        println!("Visual type {:?}", visual_ffi);
         let visual = unsafe { XCBVisualType::from_raw_none(&mut visual_ffi as *mut _ as _) };
 
         // change root window attributes
@@ -428,16 +427,12 @@ impl State {
     /// Update and redraw all bar windows.
     pub fn update_bars(&mut self) -> WmResult {
         for bar in self.bars.iter_mut() {
-            #[cfg(debug_assertions)]
-            println!("bar monitor id: {}, monitors: {:#?}", bar.monitor(), self.monitors);
             let monitors: Vec<&Monitor> = self
                 .monitors
                 .iter()
                 .filter(|mon| mon.id() == bar.monitor() + 1)
                 .collect();
             if let Some(monitor) = monitors.first() {
-                #[cfg(debug_assertions)]
-                println!("done!");
                 if let Ok(ws) = monitor.get_open_workspace() {
                     bar.update(self.focused_workspace, Some(ws), "DEBUG".to_string())?
                 } else {

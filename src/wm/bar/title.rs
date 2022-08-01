@@ -29,6 +29,23 @@ impl TitlebarSegment {
         cr.set_font_size(font_size);
         Ok(cr.text_extents(&self.get_text())?.into())
     }
+
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+        if let Some((x, y)) = position {
+            cr.move_to(x.into(), y.into());
+        }
+
+        cr.select_font_face(
+            &self.settings.font,
+            cairo::FontSlant::Normal,
+            cairo::FontWeight::Normal,
+        );
+        let text = self.get_text();
+        cr.set_source_rgb(1., 1., 1.);
+        cr.show_text(&text)?;
+
+        Ok(())
+    }
 }
 
 impl From<WindowTitleSettings> for TitlebarSegment {

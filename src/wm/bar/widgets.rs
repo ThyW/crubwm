@@ -106,4 +106,25 @@ impl WidgetSegment {
 
         Ok(extents)
     }
+
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+        // should draw a backgroud too
+        if let Some((x, y)) = position {
+            cr.move_to(x.into(), y.into())
+        }
+        for widget in self.widgets.iter() {
+            cr.select_font_face(
+                &widget.settings.font,
+                cairo::FontSlant::Normal,
+                cairo::FontWeight::Normal,
+            );
+            cr.set_source_rgb(1., 1., 1.);
+            let (value, separator) = widget.value_with_separator();
+
+            let text = format!("{} {} {} ", separator, value, separator);
+
+            cr.show_text(&text)?;
+        }
+        Ok(())
+    }
 }

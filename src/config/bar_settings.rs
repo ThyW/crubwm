@@ -65,6 +65,32 @@ impl Default for WorkspaceSegmentSettings {
     }
 }
 
+impl WorkspaceSegmentSettings {
+    pub fn translate_color(input: String) -> WmResult<(f64, f64, f64)> {
+        let mut ret = (1., 1., 1.);
+
+        let input = input.strip_prefix('#').ok_or_else(|| {
+            Error::Generic(format!(
+                "workspace settings error: {} is an invalid color.",
+                input
+            ))
+        })?;
+
+        let mut vec: Vec<f64> = vec![];
+
+        for chunks in input.as_bytes().chunks(2) {
+            let string = String::from_utf8(chunks.to_vec())?;
+            let num = u8::from_str_radix(&string, 16)?;
+            let out = num as f64 / 255.;
+            vec.push(out)
+        }
+
+        ret = (vec[0], vec[1], vec[2]);
+
+        Ok(ret)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct WindowTitleSettings {
     /// Font used for displaying window title.
@@ -169,8 +195,6 @@ impl AllBarSettings {
                     match &bar_setting_values.get(1).ok_or_else(|| Error::Generic("missing new segment type".into()))?[..] {
                         // bar_set 0 segment add "widget" "wiget1" "right"
                         "widget" => {
-                            #[cfg(debug_assertions)]
-                            println!("{bar_setting_values:#?}");
                             let name = bar_setting_values.get(2).ok_or_else(|| Error::Generic("missing new  widget segment name".into()))?;
                             if let Ok(position_value) = bar_setting_values.get(3).ok_or_else(|| Error::Generic("Missing position specification for new segment.".into())) {
                                 if POSITIONS.contains(&position_value.as_str()) {

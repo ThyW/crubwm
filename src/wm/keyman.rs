@@ -49,7 +49,7 @@ impl KeyManager {
     pub fn get_floating_modifier(&self) -> Option<u16> {
         for managed in self.managed_keybinds.iter() {
             if matches!(managed.action, Action::ToggleFloat) {
-                println!("mask is: {}", managed.mask);
+                // println!("mask is: {}", managed.mask);
                 return Some(managed.mask);
             }
         }

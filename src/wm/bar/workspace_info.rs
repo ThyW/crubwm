@@ -52,6 +52,48 @@ impl WorkspaceInfoSegment {
     fn value(&self) -> String {
         format!(" {}:{} ", self.name, self.workspace_id)
     }
+
+    fn draw(&self, cr: &Context, settings: &WorkspaceSegmentSettings) -> WmResult {
+        cr.select_font_face(
+            &settings.font,
+            cairo::FontSlant::Normal,
+            cairo::FontWeight::Normal,
+        );
+        let text = self.value();
+
+        if self.focused {
+            let (r, g, b) = WorkspaceSegmentSettings::translate_color(
+                settings.focused_foreground_color.clone(),
+            )?;
+            cr.set_source_rgb(r, g, b);
+        } else {
+            let (r, g, b) = WorkspaceSegmentSettings::translate_color(
+                settings.normal_foreground_color.clone(),
+            )?;
+            cr.set_source_rgb(r, g, b);
+        }
+
+        cr.show_text(&text)?;
+
+        Ok(())
+    }
+
+    fn get_extents(
+        &self,
+        cr: &Context,
+        font_size: f64,
+        settings: &WorkspaceSegmentSettings,
+    ) -> WmResult<TextExtents> {
+        cr.select_font_face(
+            &settings.font,
+            cairo::FontSlant::Normal,
+            cairo::FontWeight::Normal,
+        );
+        cr.set_font_size(font_size);
+        let ext = cr.text_extents(&self.value())?.into();
+
+        Ok(ext)
+    }
 }
 
 impl WorkspaceInfo {
@@ -102,16 +144,20 @@ impl WorkspaceInfo {
         let mut extents = TextExtents::default();
 
         for workspace in self.workspaces.iter() {
-            cr.select_font_face(
-                &self.settings.font,
-                cairo::FontSlant::Normal,
-                cairo::FontWeight::Normal,
-            );
-            cr.set_font_size(font_size);
-            let ext = cr.text_extents(&workspace.value())?.into();
-            extents += ext;
+            extents += workspace.get_extents(cr, font_size, &self.settings)?;
         }
 
         Ok(extents)
+    }
+
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+        if let Some((x, y)) = position {
+            cr.move_to(x.into(), y.into());
+        }
+        for part in self.workspaces.iter() {
+            part.draw(&cr, &self.settings)?
+        }
+
+        Ok(())
     }
 }

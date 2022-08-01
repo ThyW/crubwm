@@ -101,10 +101,17 @@ pub struct Segment {
 }
 
 impl Segment {
-    fn draw(&mut self, cr: &Context, position: (f32, f32)) -> WmResult {
+    fn draw(&mut self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+        match &self.segment_type {
+            SegmentType::Widget(widget) => widget.draw(&cr, position),
+            SegmentType::IconTray(tray) => tray.draw(&cr, position),
+            SegmentType::Workspace(ws) => ws.draw(&cr, position),
+            SegmentType::WindowTitle(title) => title.draw(&cr, position),
+        };
         Ok(())
     }
 
+    /// Get the text to be displayed on the bar based on the SegmentType.
     fn get_drawable_text(&self) -> String {
         match &self.segment_type {
             SegmentType::Widget(widget) => widget.get_text(),
@@ -114,6 +121,7 @@ impl Segment {
         }
     }
 
+    /// Get the text extents of the Segment's drawable text.
     fn get_text_extents(&self, cr: &Context, font_size: f64) -> WmResult<TextExtents> {
         match &self.segment_type {
             SegmentType::Widget(widget) => widget.get_text_extents(cr, font_size),
@@ -209,6 +217,7 @@ impl Bar {
         })
     }
 
+    /// Retrun the bar settings structure if it exists for the current bar.
     pub fn settings(&self) -> WmResult<&BarSettings> {
         self.settings
             .as_ref()
@@ -286,9 +295,64 @@ impl Bar {
 
         let (left_extents, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
 
+        self.get_height()?;
+        let height = self.geometry()?.y as f64;
+        let height = height - ((height / 100.) * 10.);
+
+        cr.move_to(0., height);
+
+        let mut index = 0;
+        let mut to_break = false;
+        let mut segment = &mut sorted[index];
+        // draw the left segments
+        while let SegmentPosition::Left = segment.position {
+            segment.draw(&cr, None)?;
+            index += 1;
+            if let Some(x) = sorted.get_mut(index) {
+                segment = x;
+                continue;
+            }
+            break;
+        }
+
+        let middle_point = self.geometry()?.width / 2;
+        let middle_extents_mid_point = middle_extents.width / 2.;
+        let middle_start = middle_point as f64 - middle_extents_mid_point;
+
+        cr.move_to(middle_start, height);
+
+        let mut segment = &mut sorted[index];
+        // draw the middle segments
+        while let SegmentPosition::Middle = segment.position {
+            segment.draw(&cr, None)?;
+            index += 1;
+            if let Some(x) = sorted.get_mut(index) {
+                segment = x;
+                continue;
+            }
+            break;
+        }
+
+        let right_start = self.geometry()?.width as f64 - right_extents.width;
+
+        cr.move_to(right_start, height);
+
+        let mut segment = &mut sorted[index];
+        // draw the right segments
+        while let SegmentPosition::Right = segment.position {
+            segment.draw(&cr, None)?;
+            index += 1;
+            if let Some(x) = sorted.get_mut(index) {
+                segment = x;
+                continue;
+            }
+            break;
+        }
+
         Ok(())
     }
 
+    /// Get the text extents of all the segments based on their positions from left to right.
     fn get_bar_text_extents(
         &self,
         cr: &Context,
@@ -318,7 +382,8 @@ impl Bar {
         Ok((left_extents, middle_extents, right_extents))
     }
 
-    pub fn get_height(&self) -> WmResult<u32> {
+    /// Try to get the maximum height a text on the bar will have.
+    pub fn get_height(&mut self) -> WmResult<u32> {
         let cr = Context::new(self.surface()?)?;
         let (left_extents, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
 
@@ -333,7 +398,10 @@ impl Bar {
             Error::Generic("Unable to get the bar height, using the default value".into())
         })?;
 
-        println!("height: {ret}");
+        if let Some(g) = self.geometry.as_mut() {
+            g.y = ret as i16;
+        }
+
         Ok(ret as _)
     }
 
@@ -375,6 +443,11 @@ impl Bar {
         Ok(())
     }
 
+    /// Update all bar's workspace info segments.
+    ///
+    /// This attempts to set set the open and focused workspaces.
+    ///
+    /// This should also set the urgent workspaces in the future.
     fn update_workspace_info(
         &mut self,
         focused_workspace: Option<WorkspaceId>,
@@ -396,6 +469,7 @@ impl Bar {
         Ok(())
     }
 
+    /// Update the window title for the bar.
     fn update_window_title(&mut self, window_title: String) {
         let mut segments: Vec<&mut Segment> = self
             .segments
@@ -411,6 +485,7 @@ impl Bar {
     }
 }
 
+// TODO
 pub enum BarEvent {
     ButtonPress,
     ButtonRelease,
