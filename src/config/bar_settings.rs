@@ -16,6 +16,14 @@ pub struct WidgetSettings {
     /// starts with 'file:' followed by a path to an image wich will be attempted to be loaded and
     /// used as an icon.
     pub icon: String,
+    /// Foreground color of the icon text.
+    pub icon_color: String,
+    /// Foreground color of the value text.
+    pub value_color: String,
+    /// Foreground color of the value text.
+    pub separator_color: String,
+    /// Background color for the whole widget.
+    pub background_color: String,
     /// A command that is run on every update.
     pub command: String,
     /// Time, in seconds, of how often should the widget be updated.
@@ -31,6 +39,10 @@ impl Default for WidgetSettings {
         Self {
             id: "none".into(),
             icon: "NONE".into(),
+            icon_color: "#ffffff".into(),
+            value_color: "#ffffff".into(),
+            separator_color: "#ffffff".into(),
+            background_color: "#00a2ff".into(),
             command: "".into(),
             update_time: 0,
             font: "monospace".into(),
@@ -65,32 +77,6 @@ impl Default for WorkspaceSegmentSettings {
     }
 }
 
-impl WorkspaceSegmentSettings {
-    pub fn translate_color(input: String) -> WmResult<(f64, f64, f64)> {
-        let mut ret = (1., 1., 1.);
-
-        let input = input.strip_prefix('#').ok_or_else(|| {
-            Error::Generic(format!(
-                "workspace settings error: {} is an invalid color.",
-                input
-            ))
-        })?;
-
-        let mut vec: Vec<f64> = vec![];
-
-        for chunks in input.as_bytes().chunks(2) {
-            let string = String::from_utf8(chunks.to_vec())?;
-            let num = u8::from_str_radix(&string, 16)?;
-            let out = num as f64 / 255.;
-            vec.push(out)
-        }
-
-        ret = (vec[0], vec[1], vec[2]);
-
-        Ok(ret)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct WindowTitleSettings {
     /// Font used for displaying window title.
@@ -106,7 +92,7 @@ impl Default for WindowTitleSettings {
         Self {
             font: "monospace".into(),
             foreground_color: "#ffffff".into(),
-            background_color: "00a2ff".into(),
+            background_color: "#00a2ff".into(),
         }
     }
 }
@@ -132,6 +118,8 @@ pub struct BarSettings {
     pub font_size: u32,
     /// Height of the bar.
     pub height: u32,
+    /// Background color of the bar.
+    pub background_color: String,
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +150,7 @@ pub enum SegmentSettingsType {
 impl BarSettings {
     fn new(identifier: u32) -> Self {
         Self {
+            background_color: "#333333".into(),
             identifier,
             monitor: 1,
             segments: Vec::new(),
@@ -261,6 +250,54 @@ impl AllBarSettings {
                                         Error::Generic(format!("missing value for {value}"))
                                     })?
                                     .to_string();
+                            }
+                            "icon_fg" | "icon_foreground" => {
+                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                    if !next_val.starts_with('#') {
+                                        return Err(format!(
+                                            "{next_val} is not a correct value for {value}"
+                                        )
+                                        .into());
+                                    }
+
+                                    widget.icon_color = next_val.to_string();
+                                }
+                            }
+                            "value_fg" | "value_foreground" => {
+                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                    if !next_val.starts_with('#') {
+                                        return Err(format!(
+                                            "{next_val} is not a correct value for {value}"
+                                        )
+                                        .into());
+                                    }
+
+                                    widget.value_color = next_val.to_string();
+                                }
+                            }
+                            "separator_fg" | "separator_foreground" => {
+                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                    if !next_val.starts_with('#') {
+                                        return Err(format!(
+                                            "{next_val} is not a correct value for {value}"
+                                        )
+                                        .into());
+                                    }
+
+                                    widget.separator_color = next_val.to_string();
+                                }
+                            }
+                            "bg" | "bg_color" | "background_color" => {
+                                if let Some(next_val) = bar_setting_values.get(ii + 1) {
+                                    if !next_val.starts_with('#') {
+                                        return Err(format!(
+                                            "{next_val} is not a correct value for {value}"
+                                        )
+                                        .into());
+                                    }
+
+                                    widget.background_color = next_val.to_string();
+                                }
                             }
                             "command" => {
                                 let mut command_parts = Vec::new();
@@ -473,6 +510,13 @@ impl AllBarSettings {
             "icon_tray" | "tray" => if &bar_setting_values[0] == "set" {},
             "font_size" => bar.font_size = bar_setting_values[0].parse()?,
             "height" => bar.height = bar_setting_values[0].parse()?,
+            "background_color" => {
+                let val = bar_setting_values[0].clone();
+                if !val.starts_with('#') {
+                    return Err(format!("{val} is not a valid color format!").into());
+                }
+                bar.background_color = val;
+            }
             _ => {
                 return Err(
                     format!("bar settings error: no setting {bar_setting_name} exists.").into(),

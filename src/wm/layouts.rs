@@ -52,7 +52,7 @@ pub trait Layout<'a> {
 #[allow(clippy::enum_variant_names)]
 #[allow(unused)]
 #[repr(u64)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LayoutType {
     TilingEqualHorizontal = LayoutMask::TILING_EQUAL_HORIZONTAL,
     TilingEqualVertical = LayoutMask::TILING_EQUAL_VERTICAL,

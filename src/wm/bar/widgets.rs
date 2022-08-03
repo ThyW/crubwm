@@ -1,15 +1,11 @@
-use std::{
-    process::Command,
-    rc::Rc,
-    time::{Instant, UNIX_EPOCH},
-    vec,
-};
+use std::{process::Command, time::UNIX_EPOCH, vec};
 
 use cairo::Context;
 
 use crate::{
     config::{WidgetSettings, WmResult},
-    wm::geometry::TextExtents,
+    utils,
+    wm::geometry::{Geometry, TextExtents},
 };
 
 #[derive(Clone, Debug)]
@@ -34,7 +30,9 @@ impl Widget {
                     .args(["-c", &self.settings.command])
                     .output()?
                     .stdout,
-            )?;
+            )?
+            .trim()
+            .to_string();
             self.last_update = now
         }
 
@@ -52,6 +50,44 @@ impl Widget {
         let (value, separator) = self.value_with_separator();
         let text = format!("{} {} {}", separator, value, separator);
         (text, self.settings.font.clone())
+    }
+
+    fn draw(&self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
+        cr.select_font_face(
+            &self.settings.font,
+            cairo::FontSlant::Normal,
+            cairo::FontWeight::Normal,
+        );
+
+        if let Some((x, y)) = position {
+            cr.move_to(x.into(), y.into())
+        }
+
+        let (value, separator) = self.value_with_separator();
+
+        let extents: TextExtents = cr.text_extents(&format!("{separator}-{value}-"))?.into();
+        let (x, y) = cr.current_point()?;
+
+        let (r, g, b) = utils::translate_color(self.settings.background_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.rectangle(x, 0., extents.width, geometry.height as _);
+        cr.fill()?;
+
+        cr.move_to(x, y);
+
+        let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.show_text(format!("{separator} ").as_str())?;
+
+        let (r, g, b) = utils::translate_color(self.settings.icon_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.show_text(format!("{} ", self.settings.icon).as_str())?;
+
+        let (r, g, b) = utils::translate_color(self.settings.value_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.show_text(format!("{} ", self.value).as_str())?;
+
+        Ok(())
     }
 }
 
@@ -77,7 +113,7 @@ impl WidgetSegment {
         Ok(())
     }
 
-    pub fn get_text(&self) -> String {
+    pub fn _get_text(&self) -> String {
         let mut buffer = String::new();
         let mut last_sep = String::new();
 
@@ -107,23 +143,13 @@ impl WidgetSegment {
         Ok(extents)
     }
 
-    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
         // should draw a backgroud too
         if let Some((x, y)) = position {
             cr.move_to(x.into(), y.into())
         }
         for widget in self.widgets.iter() {
-            cr.select_font_face(
-                &widget.settings.font,
-                cairo::FontSlant::Normal,
-                cairo::FontWeight::Normal,
-            );
-            cr.set_source_rgb(1., 1., 1.);
-            let (value, separator) = widget.value_with_separator();
-
-            let text = format!("{} {} {} ", separator, value, separator);
-
-            cr.show_text(&text)?;
+            widget.draw(cr, position, geometry)?;
         }
         Ok(())
     }

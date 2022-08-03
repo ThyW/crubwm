@@ -1,15 +1,23 @@
 use cairo::Context;
 
-use crate::config::{IconTraySettings, WmResult};
+use crate::{
+    config::{IconTraySettings, WmResult},
+    wm::geometry::Geometry,
+};
 
 #[derive(Clone, Debug)]
 pub struct IconTraySegment {
-    icons: Vec<u32>,
-    settings: IconTraySettings,
+    _icons: Vec<u32>,
+    _settings: IconTraySettings,
 }
 
 impl IconTraySegment {
-    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+    pub fn draw(
+        &self,
+        _cr: &Context,
+        _position: Option<(f32, f32)>,
+        _geometry: Geometry,
+    ) -> WmResult {
         Ok(())
     }
 }
@@ -17,8 +25,8 @@ impl IconTraySegment {
 impl From<IconTraySettings> for IconTraySegment {
     fn from(s: IconTraySettings) -> Self {
         Self {
-            icons: Vec::new(),
-            settings: s,
+            _icons: Vec::new(),
+            _settings: s,
         }
     }
 }

@@ -72,9 +72,10 @@ impl AtomStruct {
         self.value
     }
 
+    // TODO this should be fixed a bit
     pub fn value_number(&self) -> u32 {
         match self.value_type() {
-            ValueType::Single(_) => 1,
+            ValueType::Single(_) => MAX_VAL_NUMBER,
             ValueType::List(_, num) => {
                 if num > 0 {
                     num as u32
@@ -202,6 +203,7 @@ impl AtomManager {
             // "_NET_WM_HANDLED_ICONS",
             ("_NET_WM_USER_TIME", ValueType::Single(AtomEnum::CARDINAL)),
             ("_NET_FRAME_EXTENTS", ValueType::List(AtomEnum::CARDINAL, 4)),
+            ("WM_NAME", ValueType::Single(AtomEnum::STRING)),
         ];
 
         for (atom, value) in atoms {

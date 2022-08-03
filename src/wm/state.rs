@@ -191,6 +191,34 @@ impl State {
         self.default_colormap
     }
 
+    /// Try and return the value of the `_NET_WM_NAME` or `WM_NAME` properties for the currently focused window.
+    fn focused_window_name(&self) -> WmResult<String> {
+        let mut ret_str: Option<String> = None;
+        let ws = self.get_focused_workspace()?;
+        if let Some(win) = ws.focus.focused_client() {
+            if let Some(atom) = self._atoms.get("_NET_WM_NAME") {
+                let ret = atom.get_property(win, self.connection())?;
+                if let Some(first) = ret.first() {
+                    let str: String = first.clone().try_into()?;
+                    if !str.is_empty() && ret_str.is_none() {
+                        ret_str = Some(str);
+                    }
+                }
+            }
+            if let Some(atom) = self._atoms.get("WM_NAME") {
+                let ret = atom.get_property(win, self.connection())?;
+                if let Some(first) = ret.first() {
+                    let str: String = first.clone().try_into()?;
+                    if !str.is_empty() && ret_str.is_none() {
+                        ret_str = Some(str);
+                    }
+                }
+            }
+        }
+
+        Ok(ret_str.unwrap_or_else(|| "N/A".to_string()))
+    }
+
     /// Go through all workspaces, if they contain a given window: return the reference to the
     /// workspace, otherwise don't return anything.
     fn workspace_for_window(&self, wid: u32) -> Option<&Workspace> {
@@ -259,6 +287,7 @@ impl State {
                 layout_mask,
                 self.root_window(),
                 screen_size,
+                self.monitors[monitor_index].id(),
             ));
             self.monitors[monitor_index].add_workspace(workspace_settings.identifier)
         }
@@ -408,9 +437,17 @@ impl State {
                     h as _,
                 )?;
                 bar.set_surface(surface);
-                let mut geom = monitor_geometry.clone();
+                let mut geom = monitor_geometry;
                 geom.height = h as _;
-                bar.set_geometry(geom)
+                bar.set_geometry(geom);
+                for workspace in self.workspaces.iter_mut() {
+                    if workspace.monitor == bar.monitor() + 1 {
+                        let g = workspace.screen() - geom;
+                        #[cfg(debug_assertions)]
+                        println!("{g}");
+                        workspace.set_screen(g);
+                    }
+                }
             }
             self.bar_windows.push(window_id);
             self.connection().map_window(window_id)?;
@@ -426,6 +463,9 @@ impl State {
 
     /// Update and redraw all bar windows.
     pub fn update_bars(&mut self) -> WmResult {
+        let window_name = self
+            .focused_window_name()
+            .unwrap_or_else(|_| "NAN".to_string());
         for bar in self.bars.iter_mut() {
             let monitors: Vec<&Monitor> = self
                 .monitors
@@ -434,9 +474,9 @@ impl State {
                 .collect();
             if let Some(monitor) = monitors.first() {
                 if let Ok(ws) = monitor.get_open_workspace() {
-                    bar.update(self.focused_workspace, Some(ws), "DEBUG".to_string())?
+                    bar.update(self.focused_workspace, Some(ws), window_name.clone())?
                 } else {
-                    bar.update(self.focused_workspace, None, "DEBUG".to_string())?
+                    bar.update(self.focused_workspace, None, window_name.clone())?
                 }
             }
             bar.redraw()?

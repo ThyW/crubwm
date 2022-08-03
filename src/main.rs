@@ -3,6 +3,7 @@ mod config;
 mod errors;
 mod ffi;
 mod parsers;
+mod utils;
 mod wm;
 
 use errors::WmResult;

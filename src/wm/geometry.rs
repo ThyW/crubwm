@@ -114,3 +114,15 @@ impl AddAssign for TextExtents {
         self.height = other.height;
     }
 }
+
+impl std::ops::Sub for Geometry {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: rhs.x,
+            y: rhs.height as _,
+            width: self.width - rhs.x as u16,
+            height: self.height - rhs.height,
+        }
+    }
+}

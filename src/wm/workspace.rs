@@ -3,11 +3,12 @@ use std::rc::Rc;
 use super::focus_stack::FocusStack;
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
+use super::monitors::MonitorId;
 use crate::errors::WmResult;
 
 use super::container::{Client, Container, ContainerId, ContainerList};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Workspace {
     containers: ContainerList,
     layout: LayoutType,
@@ -16,6 +17,7 @@ pub struct Workspace {
     pub name: String,
     pub id: WorkspaceId,
     pub focus: FocusStack,
+    pub monitor: MonitorId,
 }
 
 impl Workspace {
@@ -26,6 +28,7 @@ impl Workspace {
         allowed_layouts_mask: u64,
         root_window: u32,
         screen_size: Geometry,
+        monitor: u32,
     ) -> Self {
         Self {
             containers: ContainerList::new(id),
@@ -35,6 +38,7 @@ impl Workspace {
             id,
             focus: FocusStack::new(root_window),
             screen_size,
+            monitor,
         }
     }
 
@@ -203,9 +207,13 @@ impl Workspace {
         self.containers.container_insert_back(container)
     }
 
-    /// Gett the size of the workspace in pixels.
+    /// Get the size of the workspace in pixels.
     pub fn screen(&self) -> Geometry {
         self.screen_size
+    }
+
+    pub fn set_screen(&mut self, screen_size: Geometry) {
+        self.screen_size = screen_size
     }
 
     /// Swap two containers.

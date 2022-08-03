@@ -2,7 +2,11 @@ use cairo::Context;
 
 use crate::{
     config::{WmResult, WorkspaceSegmentSettings},
-    wm::{geometry::TextExtents, workspace::WorkspaceId},
+    utils,
+    wm::{
+        geometry::{Geometry, TextExtents},
+        workspace::WorkspaceId,
+    },
 };
 
 /// The workspace info segment informs the user about the current state of the window manager's
@@ -19,7 +23,7 @@ pub struct WorkspaceInfoSegment {
     /// Is the workspace currently open?
     open: bool,
     /// Does the workspace seek urgent attention?
-    urgent: bool,
+    _urgent: bool,
 }
 
 /// The workspace info consists of different workspace info segments.
@@ -45,7 +49,7 @@ impl WorkspaceInfoSegment {
             workspace_id: id.into(),
             focused: false,
             open: false,
-            urgent: false,
+            _urgent: false,
         }
     }
 
@@ -53,26 +57,41 @@ impl WorkspaceInfoSegment {
         format!(" {}:{} ", self.name, self.workspace_id)
     }
 
-    fn draw(&self, cr: &Context, settings: &WorkspaceSegmentSettings) -> WmResult {
+    fn draw(
+        &self,
+        cr: &Context,
+        settings: &WorkspaceSegmentSettings,
+        geometry: Geometry,
+    ) -> WmResult {
         cr.select_font_face(
             &settings.font,
             cairo::FontSlant::Normal,
             cairo::FontWeight::Normal,
         );
         let text = self.value();
+        let extents: TextExtents = cr.text_extents(&format!("-{text}-"))?.into();
+        let (x, y) = cr.current_point()?;
+
+        /* #[cfg(debug_assertions)]
+        println!("{x}, {y}"); */
 
         if self.focused {
-            let (r, g, b) = WorkspaceSegmentSettings::translate_color(
-                settings.focused_foreground_color.clone(),
-            )?;
+            let (r, g, b) = utils::translate_color(settings.focused_background_color.clone())?;
+            cr.set_source_rgb(r, g, b);
+            cr.rectangle(x, 0., extents.width, geometry.height as _);
+            cr.fill()?;
+            let (r, g, b) = utils::translate_color(settings.focused_foreground_color.clone())?;
             cr.set_source_rgb(r, g, b);
         } else {
-            let (r, g, b) = WorkspaceSegmentSettings::translate_color(
-                settings.normal_foreground_color.clone(),
-            )?;
+            let (r, g, b) = utils::translate_color(settings.normal_background_color.clone())?;
+            cr.set_source_rgb(r, g, b);
+            cr.rectangle(x, 0., extents.width, geometry.height as _);
+            cr.fill()?;
+            let (r, g, b) = utils::translate_color(settings.normal_foreground_color.clone())?;
             cr.set_source_rgb(r, g, b);
         }
 
+        cr.move_to(x, y);
         cr.show_text(&text)?;
 
         Ok(())
@@ -81,7 +100,7 @@ impl WorkspaceInfoSegment {
     fn get_extents(
         &self,
         cr: &Context,
-        font_size: f64,
+        font_size: Option<f64>,
         settings: &WorkspaceSegmentSettings,
     ) -> WmResult<TextExtents> {
         cr.select_font_face(
@@ -89,7 +108,10 @@ impl WorkspaceInfoSegment {
             cairo::FontSlant::Normal,
             cairo::FontWeight::Normal,
         );
-        cr.set_font_size(font_size);
+
+        if let Some(size) = font_size {
+            cr.set_font_size(size);
+        }
         let ext = cr.text_extents(&self.value())?.into();
 
         Ok(ext)
@@ -130,7 +152,7 @@ impl WorkspaceInfo {
         Ok(())
     }
 
-    pub fn get_text(&self) -> String {
+    pub fn _get_text(&self) -> String {
         let mut buffer = String::new();
 
         for workspace in self.workspaces.iter() {
@@ -140,7 +162,7 @@ impl WorkspaceInfo {
         buffer
     }
 
-    pub fn get_text_extents(&self, cr: &Context, font_size: f64) -> WmResult<TextExtents> {
+    pub fn get_text_extents(&self, cr: &Context, font_size: Option<f64>) -> WmResult<TextExtents> {
         let mut extents = TextExtents::default();
 
         for workspace in self.workspaces.iter() {
@@ -150,14 +172,28 @@ impl WorkspaceInfo {
         Ok(extents)
     }
 
-    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
         if let Some((x, y)) = position {
             cr.move_to(x.into(), y.into());
         }
         for part in self.workspaces.iter() {
-            part.draw(&cr, &self.settings)?
+            part.draw(cr, &self.settings, geometry)?
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::CStr;
+
+    #[test]
+    fn text_extents() {
+        let str = " abc ".to_string();
+        let sstr = unsafe { CStr::from_ptr(str.as_ptr() as *mut _) };
+        print!("{sstr:#?}");
+
+        assert_eq!(str.as_bytes(), sstr.as_ref().to_str().unwrap().as_bytes());
     }
 }

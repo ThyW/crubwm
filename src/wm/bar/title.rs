@@ -2,7 +2,8 @@ use cairo::Context;
 
 use crate::{
     config::{WindowTitleSettings, WmResult},
-    wm::geometry::TextExtents,
+    utils,
+    wm::geometry::{Geometry, TextExtents},
 };
 
 #[derive(Clone, Debug)]
@@ -20,17 +21,19 @@ impl TitlebarSegment {
         self.title.clone()
     }
 
-    pub fn get_text_extent(&self, cr: &Context, font_size: f64) -> WmResult<TextExtents> {
+    pub fn get_text_extent(&self, cr: &Context, font_size: Option<f64>) -> WmResult<TextExtents> {
         cr.select_font_face(
             &self.settings.font,
             cairo::FontSlant::Normal,
             cairo::FontWeight::Normal,
         );
-        cr.set_font_size(font_size);
+        if let Some(size) = font_size {
+            cr.set_font_size(size);
+        }
         Ok(cr.text_extents(&self.get_text())?.into())
     }
 
-    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+    pub fn draw(&self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
         if let Some((x, y)) = position {
             cr.move_to(x.into(), y.into());
         }
@@ -40,8 +43,19 @@ impl TitlebarSegment {
             cairo::FontSlant::Normal,
             cairo::FontWeight::Normal,
         );
+
+        let extents = self.get_text_extent(cr, None)?;
+
+        let (x, y) = cr.current_point()?;
+        let (r, g, b) = utils::translate_color(self.settings.background_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.rectangle(x, 0., extents.width, geometry.height as _);
+        cr.fill()?;
+
         let text = self.get_text();
-        cr.set_source_rgb(1., 1., 1.);
+        cr.move_to(x, y);
+        let (r, g, b) = utils::translate_color(self.settings.foreground_color.clone())?;
+        cr.set_source_rgb(r, g, b);
         cr.show_text(&text)?;
 
         Ok(())

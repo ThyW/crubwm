@@ -11,13 +11,10 @@
 //! More information on each segment type can be found in their respective modules bellow.
 //!
 //! A status bar communicates with the window manager by sending and receiving status bar events.
-#![allow(unused)]
 pub mod title;
 pub mod tray;
 pub mod widgets;
 pub mod workspace_info;
-
-use std::{cmp::Ordering, fmt::Write};
 
 use cairo::{Context, XCBSurface};
 use title::*;
@@ -26,8 +23,9 @@ use widgets::*;
 use workspace_info::*;
 
 use crate::{
-    config::{BarSettings, SegmentSettings, SegmentSettingsType, WindowTitleSettings},
+    config::{BarSettings, SegmentSettings, SegmentSettingsType},
     errors::{Error, WmResult},
+    utils,
 };
 
 use crate::{wm::geometry::Geometry, wm::monitors::MonitorId};
@@ -101,22 +99,22 @@ pub struct Segment {
 }
 
 impl Segment {
-    fn draw(&mut self, cr: &Context, position: Option<(f32, f32)>) -> WmResult {
+    fn draw(&mut self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
         match &self.segment_type {
-            SegmentType::Widget(widget) => widget.draw(&cr, position),
-            SegmentType::IconTray(tray) => tray.draw(&cr, position),
-            SegmentType::Workspace(ws) => ws.draw(&cr, position),
-            SegmentType::WindowTitle(title) => title.draw(&cr, position),
+            SegmentType::Widget(widget) => widget.draw(cr, position, geometry)?,
+            SegmentType::IconTray(tray) => tray.draw(cr, position, geometry)?,
+            SegmentType::Workspace(ws) => ws.draw(cr, position, geometry)?,
+            SegmentType::WindowTitle(title) => title.draw(cr, position, geometry)?,
         };
         Ok(())
     }
 
     /// Get the text to be displayed on the bar based on the SegmentType.
-    fn get_drawable_text(&self) -> String {
+    fn _get_drawable_text(&self) -> String {
         match &self.segment_type {
-            SegmentType::Widget(widget) => widget.get_text(),
-            SegmentType::IconTray(tray) => "[DEBUG]".into(),
-            SegmentType::Workspace(ws) => ws.get_text(),
+            SegmentType::Widget(widget) => widget._get_text(),
+            SegmentType::IconTray(_) => "[DEBUG]".into(),
+            SegmentType::Workspace(ws) => ws._get_text(),
             SegmentType::WindowTitle(title) => title.get_text(),
         }
     }
@@ -125,9 +123,9 @@ impl Segment {
     fn get_text_extents(&self, cr: &Context, font_size: f64) -> WmResult<TextExtents> {
         match &self.segment_type {
             SegmentType::Widget(widget) => widget.get_text_extents(cr, font_size),
-            SegmentType::IconTray(tray) => Ok(TextExtents::default()),
-            SegmentType::Workspace(ws) => ws.get_text_extents(cr, font_size),
-            SegmentType::WindowTitle(title) => title.get_text_extent(cr, font_size),
+            SegmentType::IconTray(_) => Ok(TextExtents::default()),
+            SegmentType::Workspace(ws) => ws.get_text_extents(cr, Some(font_size)),
+            SegmentType::WindowTitle(title) => title.get_text_extent(cr, Some(font_size)),
         }
     }
 }
@@ -184,7 +182,7 @@ pub struct Bar {
     /// All the segments located in a single bar window.
     segments: Vec<Segment>,
     /// Unique identifier of the bar.
-    id: u32,
+    _id: u32,
     /// Identifier of the monitor this bar is located on.
     monitor: MonitorId,
     /// X11 window id of the bar window.
@@ -207,7 +205,7 @@ impl Bar {
         }
 
         Ok(Self {
-            id: id.into(),
+            _id: id.into(),
             monitor: monitor.into(),
             segments,
             window_id: None,
@@ -225,8 +223,8 @@ impl Bar {
     }
 
     /// Get the id of the bar.
-    pub fn id(&self) -> u32 {
-        self.id
+    pub fn _id(&self) -> u32 {
+        self._id
     }
 
     /// Get the monitor id of the bar.
@@ -235,7 +233,7 @@ impl Bar {
     }
 
     /// Get the X window id of the bar window.
-    pub fn window_id(&self) -> WmResult<u32> {
+    pub fn _window_id(&self) -> WmResult<u32> {
         self.window_id
             .ok_or_else(|| Error::Generic("bar does not have an associated window id.".to_string()))
     }
@@ -283,30 +281,33 @@ impl Bar {
 
     /// Redraw the entire bar.
     pub fn redraw(&mut self) -> WmResult {
-        let geom = self.geometry()?;
+        let mut geom = self.geometry()?;
+        if geom.y == 0 {
+            self.get_height()?;
+            geom = self.geometry()?;
+        };
         let cr = Context::new(self.surface()?)?;
-        cr.set_operator(cairo::Operator::Clear);
+        let (r, g, b) = utils::translate_color(self.settings()?.background_color.clone())?;
+        cr.set_source_rgb(r, g, b);
         cr.rectangle(0.0, 0.0, geom.width.into(), geom.height.into());
         cr.fill()?;
-        cr.set_operator(cairo::Operator::Source);
+        cr.set_font_size(self.settings()?.font_size as _);
 
         let mut sorted = self.segments.clone();
         sorted.sort();
 
-        let (left_extents, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
+        let (_, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
 
-        self.get_height()?;
-        let height = self.geometry()?.y as f64;
-        let height = height - ((height / 100.) * 10.);
+        let height = geom.y as f64;
+        let height = height - 1.5;
 
         cr.move_to(0., height);
 
         let mut index = 0;
-        let mut to_break = false;
         let mut segment = &mut sorted[index];
         // draw the left segments
         while let SegmentPosition::Left = segment.position {
-            segment.draw(&cr, None)?;
+            segment.draw(&cr, None, geom)?;
             index += 1;
             if let Some(x) = sorted.get_mut(index) {
                 segment = x;
@@ -315,16 +316,20 @@ impl Bar {
             break;
         }
 
-        let middle_point = self.geometry()?.width / 2;
+        let middle_point = geom.width / 2;
         let middle_extents_mid_point = middle_extents.width / 2.;
         let middle_start = middle_point as f64 - middle_extents_mid_point;
+        #[cfg(debug_assertions)]
+        println!("middle start: {middle_start}");
 
         cr.move_to(middle_start, height);
 
         let mut segment = &mut sorted[index];
         // draw the middle segments
         while let SegmentPosition::Middle = segment.position {
-            segment.draw(&cr, None)?;
+            #[cfg(debug_assertions)]
+            println!("drawing middle: {:#?}", segment);
+            segment.draw(&cr, None, geom)?;
             index += 1;
             if let Some(x) = sorted.get_mut(index) {
                 segment = x;
@@ -333,14 +338,14 @@ impl Bar {
             break;
         }
 
-        let right_start = self.geometry()?.width as f64 - right_extents.width;
+        let right_start = geom.width as f64 - right_extents.width - 3.;
 
         cr.move_to(right_start, height);
 
         let mut segment = &mut sorted[index];
         // draw the right segments
         while let SegmentPosition::Right = segment.position {
-            segment.draw(&cr, None)?;
+            segment.draw(&cr, None, geom)?;
             index += 1;
             if let Some(x) = sorted.get_mut(index) {
                 segment = x;
@@ -368,13 +373,13 @@ impl Bar {
         for segment in sorted.iter_mut() {
             match segment.position {
                 SegmentPosition::Left => {
-                    left_extents += segment.get_text_extents(&cr, size)?;
+                    left_extents += segment.get_text_extents(cr, size)?;
                 }
                 SegmentPosition::Middle => {
-                    middle_extents += segment.get_text_extents(&cr, size)?;
+                    middle_extents += segment.get_text_extents(cr, size)?;
                 }
                 SegmentPosition::Right => {
-                    right_extents += segment.get_text_extents(&cr, size)?;
+                    right_extents += segment.get_text_extents(cr, size)?;
                 }
             }
         }
@@ -383,6 +388,10 @@ impl Bar {
     }
 
     /// Try to get the maximum height a text on the bar will have.
+    ///
+    /// This also sets the `y` field in the bar's geometry structure which means no subsequent
+    /// calls to this function should be made and the `geometry()` method should be used to get the
+    /// height.
     pub fn get_height(&mut self) -> WmResult<u32> {
         let cr = Context::new(self.surface()?)?;
         let (left_extents, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
@@ -461,8 +470,8 @@ impl Bar {
 
         for segment in segments.iter_mut() {
             if let SegmentType::Workspace(workspace_info) = &mut segment.segment_type {
-                workspace_info.set_focused(focused_workspace);
-                workspace_info.set_open(open_workspace);
+                workspace_info.set_focused(focused_workspace)?;
+                workspace_info.set_open(open_workspace)?;
             }
         }
 
@@ -486,7 +495,7 @@ impl Bar {
 }
 
 // TODO
-pub enum BarEvent {
+pub enum _BarEvent {
     ButtonPress,
     ButtonRelease,
     KeyPress,
