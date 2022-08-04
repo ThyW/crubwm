@@ -325,8 +325,6 @@ impl Bar {
         let mut segment = &mut sorted[index];
         // draw the middle segments
         while let SegmentPosition::Middle = segment.position {
-            #[cfg(debug_assertions)]
-            println!("drawing middle: {:#?}", segment);
             segment.draw(&cr, None, geom)?;
             index += 1;
             if let Some(x) = sorted.get_mut(index) {

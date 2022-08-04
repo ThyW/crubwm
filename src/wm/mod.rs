@@ -70,7 +70,7 @@ impl Wm {
         // instantiate workspaces
         self.state.init_workspaces()?;
         // after setting up monitors and workspaces, setup up status bar
-        self.state.setup_bar()?;
+        self.state.setup_bars()?;
         // check for all open windows and manage them
         self.state.become_wm()?;
         // notify the window manager of the keybinds

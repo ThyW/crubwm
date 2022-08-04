@@ -333,7 +333,7 @@ impl State {
     }
 
     /// Create and setup status bar windows based on the status bar settings.
-    pub fn setup_bar(&mut self) -> WmResult {
+    pub fn setup_bars(&mut self) -> WmResult {
         let mut bars = Vec::new();
         // intitial bar construction
         for bar_settings in self.config.bar_settings.clone().into_iter() {
@@ -356,22 +356,17 @@ impl State {
                     ))
                 })?;
             let monitor_geometry = monitor.size();
-            let mut bar_workspace_ids: Vec<u32> = self
+            let bar_workspace_name_ids: Vec<(String, u32)> = self
                 .config
                 .workspace_settings
                 .clone()
                 .into_iter()
                 .filter(|ws| ws.monitor.parse::<u32>().unwrap_or(0) == bar.monitor())
-                .map(|ws| ws.identifier)
+                .map(|ws| (ws.name, ws.identifier))
                 .collect();
             // TODO
             // tell the bar what workspaces to display
-            bar.create_workspaces(
-                bar_workspace_ids
-                    .iter_mut()
-                    .map(|id| (id.to_string(), *id))
-                    .collect(),
-            );
+            bar.create_workspaces(bar_workspace_name_ids);
 
             // initialize bar commands
             bar.update_widgets()?;
@@ -440,20 +435,18 @@ impl State {
                 let mut geom = monitor_geometry;
                 geom.height = h as _;
                 bar.set_geometry(geom);
+                let connection = self.connection();
                 for workspace in self.workspaces.iter_mut() {
                     if workspace.monitor == bar.monitor() + 1 {
                         let g = workspace.screen() - geom;
-                        #[cfg(debug_assertions)]
-                        println!("{g}");
                         workspace.set_screen(g);
+                        workspace.apply_layout(connection.clone(), None, self.default_colormap)?;
                     }
                 }
             }
             self.bar_windows.push(window_id);
             self.connection().map_window(window_id)?;
             self.connection().flush()?;
-
-            // set it up with mainloop so that it works properly
         }
 
         self.bars = bars;
@@ -1279,11 +1272,13 @@ impl State {
         self.config = Rc::new(config);
         let connection = self.connection();
         let root_window = self.root_window();
+        let screen_geom = self.root_geometry()?;
 
         // redo keybinds
         self.init_keyman(self.config.keybinds.clone())?;
-        // regrab keys for all clients, reapply clinet attributes and reapply layouts
+        // regrab keys for all clients, reapply client attributes and reapply layouts
         for workspace in self.workspaces.iter_mut() {
+            workspace.set_screen(screen_geom);
             for container in workspace.containers_mut().iter_mut() {
                 if let Some(window_id) = container.data().window_id() {
                     connection.ungrab_button(ButtonIndex::ANY, window_id, ANY_MOD_KEY_MASK)?;
@@ -1321,6 +1316,14 @@ impl State {
 
             workspace.apply_layout(connection.clone(), None, self.default_colormap)?;
         }
+
+        // reapply bar settings
+        for bar_window in self.bar_windows.iter() {
+            connection.destroy_window(*bar_window)?;
+        }
+
+        self.bar_windows.clear();
+        self.setup_bars()?;
 
         Ok(())
     }
