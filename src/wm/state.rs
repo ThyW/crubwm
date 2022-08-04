@@ -52,7 +52,6 @@ pub struct State {
     floating_modifier: u16,
     default_colormap: u32,
     xcb_connection: Rc<CairoConnection>,
-    _cairo_visual: Rc<XCBVisualType>,
     bar_windows: Vec<u32>,
     bars: Vec<Bar>,
 }
@@ -90,12 +89,6 @@ impl State {
 
         let xcb_connection =
             unsafe { CairoConnection::from_raw_none(connection.get_raw_xcb_connection() as _) };
-        let mut visual_ffi = find_xcb_visualtype(
-            &connection,
-            connection.setup().roots[screen_index].root_visual,
-        )
-        .unwrap();
-        let visual = unsafe { XCBVisualType::from_raw_none(&mut visual_ffi as *mut _ as _) };
 
         // change root window attributes
         let change = ChangeWindowAttributesAux::default().event_mask(
@@ -130,7 +123,6 @@ impl State {
             floating_modifier: 64,
             default_colormap,
             xcb_connection: Rc::new(xcb_connection),
-            _cairo_visual: Rc::new(visual),
             bar_windows: Vec::new(),
             bars: Vec::new(),
         })
@@ -334,6 +326,7 @@ impl State {
 
     /// Create and setup status bar windows based on the status bar settings.
     pub fn setup_bars(&mut self) -> WmResult {
+        let mut _has_tray = false;
         let mut bars = Vec::new();
         // intitial bar construction
         for bar_settings in self.config.bar_settings.clone().into_iter() {
@@ -837,13 +830,23 @@ impl State {
     /// In the future, this will also handle the decorators, WM properties and other necessary
     /// things.
     pub fn handle_enter_event(&mut self, window: u32) -> WmResult {
-        let mut id = self.get_focused_workspace()?.id;
+        if window == self.root_window() {
+            return Ok(());
+        }
+        let workspace = self.workspace_for_window(window).ok_or_else(|| {
+            Error::Generic(format!("The window {window} is not in any workspace!"))
+        })?;
 
-        if let Some(workspace) = self.workspace_for_window(window) {
-            id = workspace.id
+        let cont = workspace.find_by_window_id(window)?;
+
+        if cont.is_floating() {
+            self.connection().configure_window(
+                window,
+                &ConfigureWindowAux::new().stack_mode(StackMode::ABOVE),
+            )?;
         }
 
-        self.focus_workspace(id, false)?;
+        self.focus_workspace(workspace.id, false)?;
         self.get_focused_workspace_mut()?
             .focus
             .set_focused_client(window);
@@ -1073,7 +1076,7 @@ impl State {
             .arg("-c")
             .args(
                 command
-                    .split(" ")
+                    .split(' ')
                     .map(|m| m.to_string())
                     .collect::<Vec<String>>(),
             )
@@ -1228,11 +1231,15 @@ impl State {
         if container.is_in_layout() {
             container.change_to_floating()?
         } else {
-            container.change_to_layout()?
+            container.change_to_layout()?;
+            connection.configure_window(
+                focused_client_id,
+                &ConfigureWindowAux::new().stack_mode(StackMode::BELOW),
+            )?;
         }
 
-        let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
-        connection.configure_window(focused_client_id, &window_config)?;
+        /* let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
+        connection.configure_window(focused_client_id, &window_config)?; */
         workspace.apply_layout(connection.clone(), None, default_colormap)?;
         connection.set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
@@ -1240,6 +1247,7 @@ impl State {
         Ok(())
     }
 
+    /// Swap two containers.
     fn action_swap(&mut self, direction: Direction) -> WmResult {
         let connection = self.connection();
         let default_colormap = self.default_colormap();
@@ -1263,6 +1271,9 @@ impl State {
         Ok(())
     }
 
+    /// Reload the window manager's config file.
+    ///
+    /// This reloads all the keybinds, window manager settings and bar settings.
     fn action_reload_config(&mut self) -> WmResult {
         // TODO: Take a look at how monitor changes should be handled
         let path = &self.config.path;

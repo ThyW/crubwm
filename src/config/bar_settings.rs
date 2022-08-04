@@ -122,6 +122,18 @@ pub struct BarSettings {
     pub background_color: String,
 }
 
+impl BarSettings {
+    pub fn contains_tray(&self) -> bool {
+        for segment in self.segments.iter() {
+            if matches!(segment.segment_type, SegmentSettingsType::Title(_)) {
+                return true
+            }
+        }
+
+        false
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SegmentSettings {
     pub segment_type: SegmentSettingsType,
