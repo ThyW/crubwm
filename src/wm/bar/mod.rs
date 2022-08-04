@@ -37,10 +37,10 @@ use super::{geometry::TextExtents, workspace::WorkspaceId};
 pub enum SegmentPosition {
     /// Located on the left most part of the status bar.
     Left,
-    /// Located on the right most part of the status bar.
-    Right,
     /// Located in the exact middle of the status bar.
     Middle,
+    /// Located on the right most part of the status bar.
+    Right,
 }
 
 #[cfg(test)]
@@ -50,8 +50,8 @@ mod test {
     #[test]
     fn check_position_ordering() {
         assert!(
-            SegmentPosition::Left < SegmentPosition::Right
-                && SegmentPosition::Right < SegmentPosition::Middle
+            SegmentPosition::Left < SegmentPosition::Middle
+                && SegmentPosition::Middle < SegmentPosition::Right
         );
     }
 }
@@ -319,8 +319,6 @@ impl Bar {
         let middle_point = geom.width / 2;
         let middle_extents_mid_point = middle_extents.width / 2.;
         let middle_start = middle_point as f64 - middle_extents_mid_point;
-        #[cfg(debug_assertions)]
-        println!("middle start: {middle_start}");
 
         cr.move_to(middle_start, height);
 
