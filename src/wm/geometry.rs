@@ -11,6 +11,45 @@ pub struct Geometry {
     pub height: u16,
 }
 
+impl Geometry {
+    pub fn minus_bar(self, other: Self) -> Self {
+        // +--------------------------------------+
+        // |xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx|
+        // |xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx|
+        // |xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx|
+        // |--------------------------------------|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x*x|
+        // |--------------------------------------|
+        // |**************************************|
+        // |--------------------------------------+
+        let mut height = self.height;
+        let width = self.width;
+
+        let mut y_0 = self.y;
+
+        if y_0 == other.y {
+            height -= other.height;
+            y_0 += other.height as i16;
+        } else {
+            height -= other.height
+        }
+
+        Self {
+            x: self.x,
+            y: y_0,
+            width,
+            height,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ClientAttributes {
     pub gap_top: u32,

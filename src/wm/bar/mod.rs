@@ -193,6 +193,8 @@ pub struct Bar {
     geometry: Option<Geometry>,
     /// Settings.
     settings: Option<BarSettings>,
+    /// Bar height.
+    height: f64,
 }
 
 impl Bar {
@@ -212,6 +214,7 @@ impl Bar {
             surface: None,
             geometry: None,
             settings: Some(bar_settings.clone()),
+            height: 0.,
         })
     }
 
@@ -281,10 +284,9 @@ impl Bar {
 
     /// Redraw the entire bar.
     pub fn redraw(&mut self) -> WmResult {
-        let mut geom = self.geometry()?;
-        if geom.y == 0 {
+        let geom = self.geometry()?;
+        if self.height == 0. {
             self.get_height()?;
-            geom = self.geometry()?;
         };
         let cr = Context::new(self.surface()?)?;
         let (r, g, b) = utils::translate_color(self.settings()?.background_color.clone())?;
@@ -298,8 +300,7 @@ impl Bar {
 
         let (_, middle_extents, right_extents) = self.get_bar_text_extents(&cr)?;
 
-        let height = geom.y as f64;
-        let height = height - 1.5;
+        let height = self.height - 1.5;
 
         cr.move_to(0., height);
 
@@ -403,9 +404,7 @@ impl Bar {
             Error::Generic("Unable to get the bar height, using the default value".into())
         })?;
 
-        if let Some(g) = self.geometry.as_mut() {
-            g.y = ret as i16;
-        }
+        self.height = ret;
 
         Ok(ret as _)
     }

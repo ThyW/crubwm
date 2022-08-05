@@ -120,13 +120,15 @@ pub struct BarSettings {
     pub height: u32,
     /// Background color of the bar.
     pub background_color: String,
+    /// Indicates whether the bar should be located on the top or the bottom of the screen.
+    pub location_top: bool,
 }
 
 impl BarSettings {
     pub fn contains_tray(&self) -> bool {
         for segment in self.segments.iter() {
             if matches!(segment.segment_type, SegmentSettingsType::Title(_)) {
-                return true
+                return true;
             }
         }
 
@@ -168,6 +170,7 @@ impl BarSettings {
             segments: Vec::new(),
             font_size: 10,
             height: 15,
+            location_top: true,
         }
     }
 }
@@ -528,6 +531,16 @@ impl AllBarSettings {
                     return Err(format!("{val} is not a valid color format!").into());
                 }
                 bar.background_color = val;
+            }
+            "location" => {
+                let val = bar_setting_values[0].clone().to_lowercase();
+                if matches!(&val[..], "top") {
+                    bar.location_top = true;
+                } else if matches!(&val[..], "bottom") {
+                    bar.location_top = false;
+                } else {
+                    return Err(format!("'{val}' is not a valid value for the `location` field! Possible values are `top` and `bottom`").into());
+                }
             }
             _ => {
                 return Err(

@@ -326,6 +326,8 @@ impl State {
 
     /// Create and setup status bar windows based on the status bar settings.
     pub fn setup_bars(&mut self) -> WmResult {
+        // indicates, that there already is a icon tray and that all all further trays should be
+        // ingored
         let mut _has_tray = false;
         let mut bars = Vec::new();
         // intitial bar construction
@@ -357,7 +359,7 @@ impl State {
                 .filter(|ws| ws.monitor.parse::<u32>().unwrap_or(0) == bar.monitor())
                 .map(|ws| (ws.name, ws.identifier))
                 .collect();
-            // TODO
+
             // tell the bar what workspaces to display
             bar.create_workspaces(bar_workspace_name_ids);
 
@@ -380,19 +382,36 @@ impl State {
                 .event_mask(
                     EventMask::STRUCTURE_NOTIFY | EventMask::EXPOSURE | EventMask::KEY_PRESS,
                 );
-            self.connection().create_window(
-                screen.root_depth,
-                window_id,
-                screen.root,
-                monitor_geometry.x,
-                monitor_geometry.y,
-                monitor_geometry.width,
-                bar.settings()?.height as _, // this should be changed, it should be calculated from the bar font
-                0,
-                WindowClass::INPUT_OUTPUT,
-                screen.root_visual,
-                &values,
-            )?;
+
+            if !bar.settings()?.location_top {
+                self.connection().create_window(
+                    screen.root_depth,
+                    window_id,
+                    screen.root,
+                    monitor_geometry.x,
+                    monitor_geometry.height as i16 - bar.settings()?.height as i16,
+                    monitor_geometry.width,
+                    bar.settings()?.height as _, // this should be changed, it should be calculated from the bar font
+                    0,
+                    WindowClass::INPUT_OUTPUT,
+                    screen.root_visual,
+                    &values,
+                )?;
+            } else {
+                self.connection().create_window(
+                    screen.root_depth,
+                    window_id,
+                    screen.root,
+                    monitor_geometry.x,
+                    monitor_geometry.y,
+                    monitor_geometry.width,
+                    bar.settings()?.height as _, // this should be changed, it should be calculated from the bar font
+                    0,
+                    WindowClass::INPUT_OUTPUT,
+                    screen.root_visual,
+                    &values,
+                )?;
+            }
             let mut visual_ffi = find_xcb_visualtype(
                 self.connection.as_ref(),
                 self.connection().setup().roots[self.screen_index].root_visual,
@@ -411,12 +430,22 @@ impl State {
             bar.set_surface(surface);
             bar.set_window_id(window_id);
             if let Ok(h) = bar.get_height() {
+                // decide the y coordiante of the bar window
+                let mut y = 0;
+                if !bar.settings()?.location_top {
+                    y = monitor_geometry.height as i32 - h as i32;
+                }
+
+                // update the bar window
                 self.connection().configure_window(
                     window_id,
                     &ConfigureWindowAux::new()
                         .height(h)
+                        .y(y)
                         .stack_mode(StackMode::ABOVE),
                 )?;
+
+                // create a new surface with the given dimensions
                 let surface = XCBSurface::create(
                     &self.xcb_connection,
                     &XCBDrawable(window_id),
@@ -424,14 +453,19 @@ impl State {
                     monitor_geometry.width as _,
                     h as _,
                 )?;
+
+                // update the bar's surface and geometry
                 bar.set_surface(surface);
                 let mut geom = monitor_geometry;
                 geom.height = h as _;
+                geom.y = y as _;
                 bar.set_geometry(geom);
+
+                // update every workspace to the correct screen size, after the new bar is set.
                 let connection = self.connection();
                 for workspace in self.workspaces.iter_mut() {
                     if workspace.monitor == bar.monitor() + 1 {
-                        let g = workspace.screen() - geom;
+                        let g = workspace.screen().minus_bar(geom);
                         workspace.set_screen(g);
                         workspace.apply_layout(connection.clone(), None, self.default_colormap)?;
                     }
