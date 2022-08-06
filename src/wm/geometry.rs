@@ -134,7 +134,7 @@ impl TextExtents {
             width: width.into(),
             height: height.into(),
             advance: advance.into(),
-            bearing: bearing.into()
+            bearing: bearing.into(),
         }
     }
 }
@@ -148,7 +148,12 @@ impl Add for TextExtents {
             height = rhs.height;
         }
 
-        Self { width, height, advance: self.advance + rhs.advance, bearing: self.bearing + rhs.bearing}
+        Self {
+            width,
+            height,
+            advance: self.advance + rhs.advance,
+            bearing: self.bearing + rhs.bearing,
+        }
     }
 }
 

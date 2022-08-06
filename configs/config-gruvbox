@@ -72,4 +72,3 @@ bar_set 0 segment add "title" "title-middle" "middle"
 bar_set 0 title set "title-middle" font "JetBrainsMono Nerd Font"
 bar_set 0 title set "title-middle" fg "#d79921"
 bar_set 0 title set "title-middle" bg "#1d2021"
-
