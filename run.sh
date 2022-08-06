@@ -20,8 +20,13 @@ DISPLAY="${NDISPLAY}"
 # run the command specified in the command line arguments given to this script
 wm=""
 if [[ $1 = "debug" ]]; then
-    cargo run -- --config test-config
-    wm=$!
+    if [[ $2 = "-c" ]]; then
+	cargo run -- --config $3
+	wm=$!
+    else 
+	cargo run -- --config test-config
+	wm=$!
+    fi
 elif [[ $1 = "release" ]]; then
     cargo run --release -- --config test-config
     wm=$!

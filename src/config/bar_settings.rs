@@ -32,6 +32,7 @@ pub struct WidgetSettings {
     pub font: String,
     /// Text which separates two widgets from one another.
     pub separator: String,
+    pub format: String,
 }
 
 impl Default for WidgetSettings {
@@ -47,6 +48,7 @@ impl Default for WidgetSettings {
             update_time: 0,
             font: "monospace".into(),
             separator: "|".into(),
+            format: "".into(),
         }
     }
 }
@@ -63,6 +65,8 @@ pub struct WorkspaceSegmentSettings {
     pub normal_background_color: String,
     /// Font used to display workspace segement text(Workspace name and id).
     pub font: String,
+    /// Format string which specifies how the name and id of the workspace should be rendered.
+    pub format: String,
 }
 
 impl Default for WorkspaceSegmentSettings {
@@ -73,6 +77,7 @@ impl Default for WorkspaceSegmentSettings {
             normal_foreground_color: "#ffffff".to_string(),
             normal_background_color: "#333333".to_string(),
             font: "monospace".to_string(),
+            format: "{name}:{id}".into(),
         }
     }
 }
@@ -359,6 +364,14 @@ impl AllBarSettings {
                                     })?
                                     .to_string();
                             }
+                            "format" => {
+                                let _ = bar_setting_values
+                                    .get(ii + 1)
+                                    .ok_or_else(|| {
+                                        Error::Generic(format!("missing value for {value}"))
+                                    })?
+                                    .to_string();
+                            }
                             _ => (),
                         }
                     }
@@ -449,6 +462,14 @@ impl AllBarSettings {
                                         })?
                                         .to_string();
                                 }
+                                "format" => {
+                                    workspace_segment.format = bar_setting_values
+                                        .get(ii + 1)
+                                        .ok_or_else(|| {
+                                            Error::Generic(format!("{value} is missing a value"))
+                                        })?
+                                        .to_string();
+                                }
                                 _ => (),
                             }
                         }
@@ -525,7 +546,7 @@ impl AllBarSettings {
             "icon_tray" | "tray" => if &bar_setting_values[0] == "set" {},
             "font_size" => bar.font_size = bar_setting_values[0].parse()?,
             "height" => bar.height = bar_setting_values[0].parse()?,
-            "background_color" => {
+            "background_color" | "bg" | "background" => {
                 let val = bar_setting_values[0].clone();
                 if !val.starts_with('#') {
                     return Err(format!("{val} is not a valid color format!").into());

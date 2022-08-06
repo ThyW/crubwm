@@ -2,6 +2,7 @@ use cairo::Context;
 
 use crate::{
     config::{WmResult, WorkspaceSegmentSettings},
+    errors::Error,
     utils,
     wm::{
         geometry::{Geometry, TextExtents},
@@ -53,8 +54,41 @@ impl WorkspaceInfoSegment {
         }
     }
 
-    fn value(&self) -> String {
-        format!(" {}:{} ", self.name, self.workspace_id)
+    fn value(&self, fmt: String) -> WmResult<String> {
+        let (name, workspace_id): (String, String) =
+            (self.name.clone(), format!("{}", self.workspace_id));
+        let mut output = String::new();
+
+        let mut in_brace = false;
+        let mut brace_value = String::new();
+
+        for char in fmt.chars() {
+            if !in_brace {
+                if char == '{' {
+                    in_brace = true;
+                } else {
+                    output.push(char)
+                }
+            } else {
+                if char == '}' {
+                    in_brace = false;
+                    match &brace_value[..] {
+                        "name" => output.push_str(&name),
+                        "id" => output.push_str(&workspace_id),
+                        _ => (),
+                    };
+                    brace_value.clear();
+                } else {
+                    brace_value.push(char)
+                }
+            }
+        }
+
+        if in_brace {
+            return Err(Error::Generic(format!("{fmt} is missing a closing brace.")));
+        }
+
+        Ok(output)
     }
 
     fn draw(
@@ -68,7 +102,7 @@ impl WorkspaceInfoSegment {
             cairo::FontSlant::Normal,
             cairo::FontWeight::Normal,
         );
-        let text = self.value();
+        let text = self.value(settings.format.clone())?;
         let extents: TextExtents = cr.text_extents(&format!("-{text}-"))?.into();
         let (x, y) = cr.current_point()?;
 
@@ -112,7 +146,9 @@ impl WorkspaceInfoSegment {
         if let Some(size) = font_size {
             cr.set_font_size(size);
         }
-        let ext = cr.text_extents(&self.value())?.into();
+        let ext = cr
+            .text_extents(&self.value(settings.format.clone())?)?
+            .into();
 
         Ok(ext)
     }
@@ -152,14 +188,14 @@ impl WorkspaceInfo {
         Ok(())
     }
 
-    pub fn _get_text(&self) -> String {
+    pub fn _get_text(&self) -> WmResult<String> {
         let mut buffer = String::new();
 
         for workspace in self.workspaces.iter() {
-            buffer.push_str(&workspace.value())
+            buffer.push_str(&workspace.value(self.settings.format.clone())?)
         }
 
-        buffer
+        Ok(buffer)
     }
 
     pub fn get_text_extents(&self, cr: &Context, font_size: Option<f64>) -> WmResult<TextExtents> {

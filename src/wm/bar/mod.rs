@@ -110,13 +110,15 @@ impl Segment {
     }
 
     /// Get the text to be displayed on the bar based on the SegmentType.
-    fn _get_drawable_text(&self) -> String {
-        match &self.segment_type {
+    fn _get_drawable_text(&self) -> WmResult<String> {
+        let res = match &self.segment_type {
             SegmentType::Widget(widget) => widget._get_text(),
             SegmentType::IconTray(_) => "[DEBUG]".into(),
-            SegmentType::Workspace(ws) => ws._get_text(),
+            SegmentType::Workspace(ws) => ws._get_text()?,
             SegmentType::WindowTitle(title) => title.get_text(),
-        }
+        };
+
+        Ok(res)
     }
 
     /// Get the text extents of the Segment's drawable text.
@@ -335,7 +337,7 @@ impl Bar {
             break;
         }
 
-        let right_start = geom.width as f64 - right_extents.width - 3.;
+        let right_start = geom.width as f64 - right_extents.advance;
 
         cr.move_to(right_start, height);
 

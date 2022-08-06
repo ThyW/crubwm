@@ -4,6 +4,7 @@ use cairo::Context;
 
 use crate::{
     config::{WidgetSettings, WmResult},
+    errors::Error,
     utils,
     wm::geometry::{Geometry, TextExtents},
 };
@@ -46,13 +47,71 @@ impl Widget {
         )
     }
 
-    fn get_extent_info(&self) -> (String, String) {
-        let (value, separator) = self.value_with_separator();
-        let text = format!("{} {} {}", separator, value, separator);
-        (text, self.settings.font.clone())
+    fn _value(&self) -> WmResult<String> {
+        let mut output = String::new();
+        let fmt = self.settings.format.clone();
+
+        let mut in_brace = false;
+        let mut brace_value = String::new();
+
+        for char in fmt.chars() {
+            if !in_brace {
+                if char == '{' {
+                    in_brace = true;
+                    continue;
+                };
+                output.push(char)
+            } else {
+                if char == '}' {
+                    in_brace = false;
+                    match &brace_value[..] {
+                        "icon" => output.push_str(&self.settings.icon),
+                        "value" => output.push_str(&self.value),
+                        "separator" => output.push_str(&self.settings.separator),
+                        _ => (),
+                    };
+                } else {
+                    brace_value.push(char)
+                }
+            }
+        }
+
+        if in_brace {
+            return Err(Error::Generic(format!("{fmt} is missing a closing brace.")));
+        }
+
+        Ok(output)
     }
 
-    fn draw(&self, cr: &Context, position: Option<(f32, f32)>, geometry: Geometry) -> WmResult {
+    fn get_extent_info(&self, cr: &Context) -> WmResult<TextExtents> {
+        /* let (value, separator) = self.value_with_separator();
+        let text = format!("{}-{}-{}", separator, value, separator);
+        (text, self.settings.font.clone()) */
+
+        let mut extents = TextExtents::default();
+
+        let icon = self.settings.icon.clone();
+        let sep = self.settings.separator.clone();
+        let val = self.value.clone();
+
+        let ext = cr.text_extents(&format!("{sep}-"))?.into();
+        extents += ext;
+        let ext = cr.text_extents(&format!("{icon}-"))?.into();
+        extents += ext;
+        let ext = cr.text_extents(&format!("{val}-"))?.into();
+        extents += ext;
+        let ext = cr.text_extents(&format!("{sep}"))?.into();
+        extents += ext;
+
+        Ok(extents)
+    }
+
+    fn draw(
+        &self,
+        cr: &Context,
+        position: Option<(f64, f64)>,
+        geometry: Geometry,
+    ) -> WmResult<f64> {
         cr.select_font_face(
             &self.settings.font,
             cairo::FontSlant::Normal,
@@ -63,14 +122,14 @@ impl Widget {
             cr.move_to(x.into(), y.into())
         }
 
-        let (value, separator) = self.value_with_separator();
+        let (_, separator) = self.value_with_separator();
 
-        let extents: TextExtents = cr.text_extents(&format!("{separator}-{value}-"))?.into();
+        let extents: TextExtents = self.get_extent_info(cr)?;
         let (x, y) = cr.current_point()?;
 
         let (r, g, b) = utils::translate_color(self.settings.background_color.clone())?;
         cr.set_source_rgb(r, g, b);
-        cr.rectangle(x, 0., extents.width, geometry.height as _);
+        cr.rectangle(x, 0., extents.advance, geometry.height as _);
         cr.fill()?;
 
         cr.move_to(x, y);
@@ -87,7 +146,13 @@ impl Widget {
         cr.set_source_rgb(r, g, b);
         cr.show_text(format!("{} ", self.value).as_str())?;
 
-        Ok(())
+        let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
+        cr.set_source_rgb(r, g, b);
+        cr.show_text(format!("{separator}").as_str())?;
+
+        // cr.move_to(cr.current_point()?.0 - extents.advance, y);
+
+        Ok(extents.width)
     }
 }
 
@@ -131,12 +196,9 @@ impl WidgetSegment {
     pub fn get_text_extents(&self, cr: &Context, font_size: f64) -> WmResult<TextExtents> {
         let mut extents = TextExtents::default();
 
+        cr.set_font_size(font_size);
         for widget in self.widgets.iter() {
-            let (txt, font) = widget.get_extent_info();
-
-            cr.set_font_size(font_size);
-            cr.select_font_face(&font, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-            let ext: TextExtents = cr.text_extents(&txt)?.into();
+            let ext = widget.get_extent_info(cr)?;
             extents += ext;
         }
 
@@ -148,8 +210,9 @@ impl WidgetSegment {
         if let Some((x, y)) = position {
             cr.move_to(x.into(), y.into())
         }
+
         for widget in self.widgets.iter() {
-            widget.draw(cr, position, geometry)?;
+            widget.draw(cr, None, geometry)?;
         }
         Ok(())
     }

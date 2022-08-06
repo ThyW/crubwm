@@ -113,6 +113,8 @@ impl From<Config> for ClientAttributes {
 pub struct TextExtents {
     pub width: f64,
     pub height: f64,
+    pub advance: f64,
+    pub bearing: f64,
 }
 
 impl From<cairo::TextExtents> for TextExtents {
@@ -120,15 +122,19 @@ impl From<cairo::TextExtents> for TextExtents {
         Self {
             width: o.width,
             height: o.height,
+            advance: o.x_advance,
+            bearing: o.x_bearing,
         }
     }
 }
 
 impl TextExtents {
-    pub fn _new<I: Into<f64>>(width: I, height: I) -> Self {
+    pub fn _new<I: Into<f64>>(width: I, height: I, advance: I, bearing: I) -> Self {
         Self {
             width: width.into(),
             height: height.into(),
+            advance: advance.into(),
+            bearing: bearing.into()
         }
     }
 }
@@ -142,7 +148,7 @@ impl Add for TextExtents {
             height = rhs.height;
         }
 
-        Self { width, height }
+        Self { width, height, advance: self.advance + rhs.advance, bearing: self.bearing + rhs.bearing}
     }
 }
 
@@ -151,6 +157,8 @@ impl AddAssign for TextExtents {
         let other = *self + rhs;
         self.width = other.width;
         self.height = other.height;
+        self.advance = other.advance;
+        self.bearing = other.bearing;
     }
 }
 
