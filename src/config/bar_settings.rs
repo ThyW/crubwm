@@ -32,6 +32,7 @@ pub struct WidgetSettings {
     pub font: String,
     /// Text which separates two widgets from one another.
     pub separator: String,
+    /// Format string used when formatting widgets.
     pub format: String,
 }
 
@@ -48,7 +49,7 @@ impl Default for WidgetSettings {
             update_time: 0,
             font: "monospace".into(),
             separator: "|".into(),
-            format: "".into(),
+            format: "{separator} {icon} {value} {separator}".into(),
         }
     }
 }
@@ -365,7 +366,7 @@ impl AllBarSettings {
                                     .to_string();
                             }
                             "format" => {
-                                let _ = bar_setting_values
+                                widget.format = bar_setting_values
                                     .get(ii + 1)
                                     .ok_or_else(|| {
                                         Error::Generic(format!("missing value for {value}"))

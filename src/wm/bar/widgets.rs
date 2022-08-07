@@ -21,6 +21,25 @@ pub struct Widget {
     settings: WidgetSettings,
 }
 
+#[derive(Debug, Clone)]
+enum FormatToken {
+    Literal(char),
+    Icon(String),
+    Value(String),
+    Separator(String),
+}
+
+impl FormatToken {
+    fn text(&self) -> String {
+        match self {
+            FormatToken::Icon(s) => s.clone(),
+            FormatToken::Value(s) => s.clone(),
+            FormatToken::Separator(s) => s.clone(),
+            FormatToken::Literal(s) => s.to_string(),
+        }
+    }
+}
+
 impl Widget {
     pub fn update(&mut self) -> WmResult {
         let now = UNIX_EPOCH.elapsed()?.as_secs();
@@ -40,15 +59,15 @@ impl Widget {
         Ok(())
     }
 
-    fn value_with_separator(&self) -> (String, String) {
+    fn _value_with_separator(&self) -> (String, String) {
         (
             format!("{} {}", self.settings.icon, self.value),
             self.settings.separator.clone(),
         )
     }
 
-    fn _value(&self) -> WmResult<String> {
-        let mut output = String::new();
+    fn _value(&self) -> WmResult<Vec<FormatToken>> {
+        let mut output: Vec<FormatToken> = Vec::new();
         let fmt = self.settings.format.clone();
 
         let mut in_brace = false;
@@ -60,19 +79,20 @@ impl Widget {
                     in_brace = true;
                     continue;
                 };
-                output.push(char)
+                output.push(FormatToken::Literal(char))
+            } else if char == '}' {
+                in_brace = false;
+                match &brace_value[..] {
+                    "icon" => output.push(FormatToken::Icon(self.settings.icon.clone())),
+                    "value" => output.push(FormatToken::Value(self.value.clone())),
+                    "separator" => {
+                        output.push(FormatToken::Separator(self.settings.separator.clone()))
+                    }
+                    _ => (),
+                };
+                brace_value.clear()
             } else {
-                if char == '}' {
-                    in_brace = false;
-                    match &brace_value[..] {
-                        "icon" => output.push_str(&self.settings.icon),
-                        "value" => output.push_str(&self.value),
-                        "separator" => output.push_str(&self.settings.separator),
-                        _ => (),
-                    };
-                } else {
-                    brace_value.push(char)
-                }
+                brace_value.push(char)
             }
         }
 
@@ -89,19 +109,18 @@ impl Widget {
         (text, self.settings.font.clone()) */
 
         let mut extents = TextExtents::default();
+        let tokens = self._value()?;
 
-        let icon = self.settings.icon.clone();
-        let sep = self.settings.separator.clone();
-        let val = self.value.clone();
-
-        let ext = cr.text_extents(&format!("{sep}-"))?.into();
-        extents += ext;
-        let ext = cr.text_extents(&format!("{icon}-"))?.into();
-        extents += ext;
-        let ext = cr.text_extents(&format!("{val}-"))?.into();
-        extents += ext;
-        let ext = cr.text_extents(&format!("{sep}"))?.into();
-        extents += ext;
+        for token in tokens.iter() {
+            let text = token.text();
+            let text = &if &text[..] == " " {
+                "-".to_string()
+            } else {
+                text
+            };
+            let ext = cr.text_extents(text)?;
+            extents += ext.into();
+        }
 
         Ok(extents)
     }
@@ -119,10 +138,10 @@ impl Widget {
         );
 
         if let Some((x, y)) = position {
-            cr.move_to(x.into(), y.into())
+            cr.move_to(x, y)
         }
 
-        let (_, separator) = self.value_with_separator();
+        let tokens = self._value()?;
 
         let extents: TextExtents = self.get_extent_info(cr)?;
         let (x, y) = cr.current_point()?;
@@ -134,23 +153,30 @@ impl Widget {
 
         cr.move_to(x, y);
 
-        let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
-        cr.set_source_rgb(r, g, b);
-        cr.show_text(format!("{separator} ").as_str())?;
-
-        let (r, g, b) = utils::translate_color(self.settings.icon_color.clone())?;
-        cr.set_source_rgb(r, g, b);
-        cr.show_text(format!("{} ", self.settings.icon).as_str())?;
-
-        let (r, g, b) = utils::translate_color(self.settings.value_color.clone())?;
-        cr.set_source_rgb(r, g, b);
-        cr.show_text(format!("{} ", self.value).as_str())?;
-
-        let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
-        cr.set_source_rgb(r, g, b);
-        cr.show_text(format!("{separator}").as_str())?;
-
-        // cr.move_to(cr.current_point()?.0 - extents.advance, y);
+        for token in tokens.iter() {
+            match token.clone() {
+                FormatToken::Literal(_) => {
+                    let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
+                    cr.set_source_rgb(r, g, b);
+                    cr.show_text(token.text().as_str())?;
+                }
+                FormatToken::Icon(_) => {
+                    let (r, g, b) = utils::translate_color(self.settings.icon_color.clone())?;
+                    cr.set_source_rgb(r, g, b);
+                    cr.show_text(token.text().as_str())?;
+                }
+                FormatToken::Value(_) => {
+                    let (r, g, b) = utils::translate_color(self.settings.value_color.clone())?;
+                    cr.set_source_rgb(r, g, b);
+                    cr.show_text(token.text().as_str())?;
+                }
+                FormatToken::Separator(_) => {
+                    let (r, g, b) = utils::translate_color(self.settings.separator_color.clone())?;
+                    cr.set_source_rgb(r, g, b);
+                    cr.show_text(token.text().as_str())?;
+                }
+            }
+        }
 
         Ok(extents.width)
     }
@@ -183,7 +209,7 @@ impl WidgetSegment {
         let mut last_sep = String::new();
 
         for widget in self.widgets.iter() {
-            let value = &widget.value_with_separator();
+            let value = &widget._value_with_separator();
             buffer.push_str(&value.1);
             buffer.push_str(&value.0);
             last_sep = value.1.clone();

@@ -320,7 +320,7 @@ impl Bar {
         }
 
         let middle_point = geom.width / 2;
-        let middle_extents_mid_point = middle_extents.width / 2.;
+        let middle_extents_mid_point = middle_extents.advance / 2.;
         let middle_start = middle_point as f64 - middle_extents_mid_point;
 
         cr.move_to(middle_start, height);

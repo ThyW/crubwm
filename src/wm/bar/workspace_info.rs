@@ -69,18 +69,16 @@ impl WorkspaceInfoSegment {
                 } else {
                     output.push(char)
                 }
+            } else if char == '}' {
+                in_brace = false;
+                match &brace_value[..] {
+                    "name" => output.push_str(&name),
+                    "id" => output.push_str(&workspace_id),
+                    _ => (),
+                };
+                brace_value.clear();
             } else {
-                if char == '}' {
-                    in_brace = false;
-                    match &brace_value[..] {
-                        "name" => output.push_str(&name),
-                        "id" => output.push_str(&workspace_id),
-                        _ => (),
-                    };
-                    brace_value.clear();
-                } else {
-                    brace_value.push(char)
-                }
+                brace_value.push(char)
             }
         }
 

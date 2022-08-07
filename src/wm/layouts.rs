@@ -131,6 +131,8 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.width = width;
                             c.geometry.height = screen.height;
                             c.draw_borders(connection.clone(), default_colormap)?;
+                            connection.map_subwindows(c.window_id())?;
+                            connection.map_window(c.window_id())?;
                         }
                         ContainerType::Floating(_) => (),
                     };
@@ -166,6 +168,8 @@ impl<'a> Layout<'a> for LayoutType {
                             c.geometry.width = screen.width;
                             c.geometry.height = height;
                             c.draw_borders(connection.clone(), default_colormap)?;
+                            connection.map_subwindows(c.window_id())?;
+                            connection.map_window(c.window_id())?;
                         }
                     }
                 }
@@ -194,6 +198,8 @@ impl<'a> Layout<'a> for LayoutType {
                                 c.geometry.width = screen.width;
                                 c.geometry.height = screen.height;
                                 c.draw_borders(connection.clone(), default_colormap)?;
+                                connection.map_subwindows(c.window_id())?;
+                                connection.map_window(c.window_id())?;
                             }
                             _ => {}
                         };
@@ -228,12 +234,16 @@ impl<'a> Layout<'a> for LayoutType {
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = screen.height;
                                     c.draw_borders(connection.clone(), default_colormap)?;
+                                    connection.map_subwindows(c.window_id())?;
+                                    connection.map_window(c.window_id())?;
                                 } else {
                                     c.geometry.x = screen.x + width as i16 - 1;
                                     c.geometry.y = screen.y + height as i16 * ii;
                                     c.geometry.width = screen.width / 2;
                                     c.geometry.height = height;
                                     c.draw_borders(connection.clone(), default_colormap)?;
+                                    connection.map_subwindows(c.window_id())?;
+                                    connection.map_window(c.window_id())?;
                                 }
                             }
                             _ => {}
