@@ -1,0 +1,74 @@
+# keybinds
+keybind "<Alt>l" execute "alacritty"
+keybind "<Alt>r" execute "dmenu_run"
+keybind "<Alt>1" goto "1"
+keybind "<Alt>2" goto "2"
+keybind "<Alt>3" goto "3"
+keybind "<Alt>4" goto "4"
+keybind "<Alt>5" goto "5"
+keybind "<Alt>6" goto "6"
+keybind "<Alt>7" goto "7"
+keybind "<Alt>8" goto "8"
+keybind "<Alt>9" goto "9"
+keybind "<Alt>0" goto "10"
+keybind "<Shift><Alt>1" move "1"
+keybind "<Shift><Alt>2" move "2"
+keybind "<Shift><Alt>3" move "3"
+keybind "<Shift><Alt>4" move "4"
+keybind "<Shift><Alt>5" move "5"
+keybind "<Shift><Alt>6" move "6"
+keybind "<Shift><Alt>7" move "7"
+keybind "<Shift><Alt>8" move "8"
+keybind "<Shift><Alt>9" move "9"
+keybind "<Shift><Alt>0" move "10"
+keybind "<Alt>p" focus "previous"
+keybind "<Alt>n" focus "next"
+keybind "<Alt><Shift>p" swap "previous"
+keybind "<Alt><Shift>n" swap "next"
+keybind "<Alt>k" kill
+keybind "<Alt>i" execute "firefox-nightly"
+keybind "<Alt>h" change_layout "TilingEqualHorizontal"
+keybind "<Alt>v" change_layout "TilingEqualVertical"
+keybind "<Alt>m" change_layout "TilingMasterStack"
+keybind "<Alt>f" cycle_layout
+keybind "<Alt><space>" toggle_float
+keybind "<Alt><Shift>r" reload_config
+
+# sets
+set "border_size" "3"
+set "border_color" "#d19a66"
+set "gap_top" true
+set "gap_bottom" true
+set "gap_left" true
+set "gap_right" true
+
+set "gap_top_size" 2
+set "gap_bottom_size" 2
+set "gap_left_size" 2
+set "gap_right_size" 2
+
+hook "startup" sync "xsetroot -solid '#282c34'"
+
+# bar settings
+bar_set 0 monitor "0"
+bar_set 0 font_size "15"
+bar_set 0 location "top"
+bar_set 0 bg "#21252b"
+
+bar_set 0 segment add "widget" "widget_segment_1" "right"
+bar_set 0 widget add "widget_segment_1" "time" command "date +%H:%M" icon "" update_time "3" font "JetBrainsMono Nerd Font" icon_fg "#ebdbb2" background_color "#21252b" separator ""
+bar_set 0 widget add "widget_segment_1" "date" command "date +%d-%m-%Y" icon "" update_time "3" font "JetBrainsMono Nerd Font" icon_fg "#61afef" background_color "#21252b" separator ""
+bar_set 0 widget add "widget_segment_1" "battery" command "acpi | awk '{print $4}'" icon "" update_time "10" font "JetBrainsMono Nerd Font" icon_fg "#98c379" background_color "#21252b" separator ""
+
+bar_set 0 segment add "workspace" "workspace_left" "left"
+bar_set 0 workspace set "workspace_left" font "JetBrainsMono Nerd Font"
+bar_set 0 workspace set "workspace_left" format " {name} "
+bar_set 0 workspace set "workspace_left" normal_bg "#21252b"
+bar_set 0 workspace set "workspace_left" normal_fg "#798294"
+bar_set 0 workspace set "workspace_left" focused_bg "#21252b"
+bar_set 0 workspace set "workspace_left" focused_fg "#c678dd"
+
+bar_set 0 segment add "title" "title-middle" "middle"
+bar_set 0 title set "title-middle" font "JetBrainsMono Nerd Font"
+bar_set 0 title set "title-middle" fg "#c678dd"
+bar_set 0 title set "title-middle" bg "#21252b"
