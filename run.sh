@@ -23,13 +23,24 @@ if [[ $1 = "debug" ]]; then
     if [[ $2 = "-c" ]]; then
 	cargo run -- --config $3
 	wm=$!
+    elif [[ $2 = "-d" ]]; then
+	cargo run
+	wm=$!
     else 
 	cargo run -- --config configs/config-gruvbox
 	wm=$!
     fi
 elif [[ $1 = "release" ]]; then
-    cargo run --release -- --config configs/config-gruvbox
-    wm=$!
+    if [[ $2 = "-c" ]]; then
+	cargo run --release -- --config $3
+	wm=$!
+    elif [[ $2 = "-d" ]]; then
+	cargo run --release
+	wm=$!
+    else 
+	cargo run --release -- --config configs/config-gruvbox
+	wm=$!
+    fi
 else
     $@
     wm=$!
