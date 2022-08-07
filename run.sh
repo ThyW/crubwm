@@ -24,11 +24,11 @@ if [[ $1 = "debug" ]]; then
 	cargo run -- --config $3
 	wm=$!
     else 
-	cargo run -- --config test-config
+	cargo run -- --config configs/config-gruvbox
 	wm=$!
     fi
 elif [[ $1 = "release" ]]; then
-    cargo run --release -- --config test-config
+    cargo run --release -- --config configs/config-gruvbox
     wm=$!
 else
     $@
