@@ -3,9 +3,9 @@ This document discusses how to configure the `crubwm` window manager. It is spli
 - [Configuration](#Configuration)
 - [Keybindings](#Keybinds)
 - [Hooks](#Hooks)
-- [WM settings](#WM settings)
-- [Workspace settings](#Workspace Settings)
-- [Bar settings](#Bar settings)
+- [WM settings](#WMsettings)
+- [Workspace settings](#Workspace_settings)
+- [Bar settings](#Bar_settings)
 
 ## Configuration
 The configuration of `crubwm` is loaded from a configuration file on startup. The configuration file is parsed, verified and then used. After that the rest of the window manager's utilities are run and setup. By default, `crubwm` looks for the configuration file located on the following path: `$XDG_CONFIG/crubwm/config`. If the file is not found, `crubwm` will attempt to create it and save the default settings into it. Alternatively, a `--config` command line option followed by the `path` to a desired configuration file can be used when running crubwm. The format of the configuration file shall be discussed in the following sections.
@@ -70,7 +70,6 @@ The line starts with the `keybind` keyword. It is followed by a string represent
 | Menu key             | `<menu>`                                    |
 | Left Alt key         | `<alt_l>`, `<alt>`                          |
 | Left Alt key         | `<alt_r>`, `<ralt>`                         |
-|--------------------- | ------------------------------------------- |
 
 It is also useful to note that the keys are not case sensitive, so `<ctrl>` is the same as `<Ctrl>` as well as `<CTRL>`.
 
@@ -125,3 +124,11 @@ keybind "<Mod><Shift>h" swap previous
 keybind "<Mod>s" cycle_layout
 keybind "<Mod><space>" toggle_float
 ```
+
+## Hooks
+
+## WM settings
+
+## Workspace settings
+
+## Bar settings
