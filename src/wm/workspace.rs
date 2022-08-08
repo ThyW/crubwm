@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::focus_stack::FocusStack;
 use super::geometry::Geometry;
@@ -132,7 +132,7 @@ impl Workspace {
     /// that the layout rules for the clients can be applied right away.
     pub fn apply_layout<C: x11rb::connection::Connection>(
         &mut self,
-        connection: Rc<C>,
+        connection: Arc<C>,
         screen_size: Option<Geometry>,
         default_colormap: impl Into<u32>,
     ) -> WmResult {

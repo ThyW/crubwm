@@ -280,7 +280,7 @@ impl Bar {
     ) -> WmResult {
         self.update_widgets()?;
         self.update_workspace_info(focused_workspace, open_workspace)?;
-        self.update_window_title(window_title); // TODO Maybe change this so that
+        self.update_window_title(window_title);
         Ok(())
     }
 
@@ -489,16 +489,4 @@ impl Bar {
             }
         }
     }
-}
-
-// TODO
-pub enum _BarEvent {
-    ButtonPress,
-    ButtonRelease,
-    KeyPress,
-    KeyPressRelease,
-    WorkspaceChange,
-    IconChange,
-    WidgetChange,
-    TitleChange,
 }

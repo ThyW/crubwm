@@ -31,13 +31,13 @@ use crate::{
     wm::workspace::{Workspace, WorkspaceId},
 };
 
-use std::ffi::CStr;
 use std::{collections::HashMap, rc::Rc};
+use std::{ffi::CStr, sync::Arc};
 
 use super::{atoms::AtomStruct, container::ContainerType, layouts::LayoutType};
 
 pub struct State {
-    connection: Rc<XCBConnection>,
+    connection: Arc<XCBConnection>,
     dpy: *mut Display,
     screen_index: usize,
     workspaces: Workspaces,
@@ -108,7 +108,7 @@ impl State {
         let atoms = AtomManager::init_atoms(&connection)?;
 
         Ok(Self {
-            connection: Rc::<XCBConnection>::new(connection),
+            connection: Arc::<XCBConnection>::new(connection),
             dpy: display,
             screen_index,
             workspaces: Vec::new(),
@@ -154,6 +154,10 @@ impl State {
             }
         }
         Ok(())
+    }
+
+    pub fn bar_windows(&self) -> Vec<u32> {
+        self.bar_windows.clone()
     }
 
     /// Get the information about the current root of our display.
@@ -257,7 +261,7 @@ impl State {
     }
 
     /// Get a referecnce to the underlying X connection.
-    pub fn connection(&self) -> Rc<impl Connection> {
+    pub fn connection(&self) -> Arc<impl Connection> {
         self.connection.clone()
     }
 
@@ -380,7 +384,10 @@ impl State {
                 .background_pixel(screen.black_pixel)
                 .border_pixel(screen.black_pixel)
                 .event_mask(
-                    EventMask::STRUCTURE_NOTIFY | EventMask::EXPOSURE | EventMask::KEY_PRESS,
+                    EventMask::STRUCTURE_NOTIFY
+                        | EventMask::EXPOSURE
+                        | EventMask::KEY_PRESS
+                        | EventMask::PROPERTY_CHANGE,
                 );
 
             if !bar.settings()?.location_top {

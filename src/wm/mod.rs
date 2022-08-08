@@ -1,6 +1,12 @@
-use std::rc::Rc;
+use std::{rc::Rc, thread::spawn};
 
-use x11rb::{connection::Connection, protocol::Event};
+use x11rb::{
+    connection::Connection,
+    protocol::{
+        xproto::{AtomEnum, ConnectionExt, PropMode},
+        Event,
+    },
+};
 
 use crate::{
     config::Config,
@@ -76,18 +82,57 @@ impl Wm {
         // notify the window manager of the keybinds
         self.state.init_keyman(self.config.keybinds.clone())?;
 
+        // run the bar update thread
+        let bar_windows = self.state.bar_windows();
+        let conn = self.state.connection();
+
+        let bar_atom = self
+            .state
+            .connection()
+            .intern_atom(false, b"__BAR_UPDATE")?
+            .reply()?
+            .atom;
+        let _ = spawn(move || {
+            let mut last_time = std::time::Instant::now();
+            let mut switch = 0;
+            loop {
+                if last_time.elapsed().as_secs() >= 1 {
+                    last_time = std::time::Instant::now();
+                    for win in bar_windows.iter() {
+                        if conn
+                            .change_property(
+                                PropMode::REPLACE,
+                                *win,
+                                bar_atom,
+                                AtomEnum::INTEGER,
+                                8,
+                                1,
+                                &[switch],
+                            )
+                            .is_ok()
+                        {}
+                    }
+                    switch = if switch.eq(&1) { 0 } else { 1 };
+                    conn.flush().unwrap();
+                }
+            }
+        });
+
+        self.state.update_bars()?;
+
         // run the event loop, don't stop on errors, just report them and keep going.
         loop {
             self.state.connection().flush()?;
             self.state.update_bars()?;
             let event = self.state.connection().wait_for_event()?;
 
-            let mut event_option = Some(event);
-            while let Some(ev) = event_option {
+            let mut ev_option = Some(event);
+
+            while let Some(ev) = ev_option {
                 if let Err(e) = self.handle_event(ev) {
-                    eprintln!("{e}")
+                    eprintln!("{}", e);
                 }
-                event_option = self.state.connection().poll_for_event()?;
+                ev_option = self.state.connection().poll_for_event()?;
             }
         }
     }
@@ -148,9 +193,14 @@ impl Wm {
             Event::DestroyNotify(e) => {
                 self.state.unmanage_window(e.window)?;
             }
-            Event::PropertyNotify(_e) => {
-                #[cfg(debug_assertions)]
-                println!("property notify in window: {} atom: {}", _e.window, _e.atom);
+            Event::PropertyNotify(e) => {
+                let bar_widnows = self.state.bar_windows();
+                if bar_widnows.contains(&e.window) {
+                    self.state.update_bars()?;
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("property notify in window: {} atom: {}", e.window, e.atom);
+                }
             }
             _ev => {}
         };

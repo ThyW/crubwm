@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{collections::VecDeque, rc};
+use std::{collections::VecDeque, sync::Arc};
 
 use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt};
 
@@ -164,7 +164,7 @@ impl Client {
 
     pub fn draw_borders<C: x11rb::connection::Connection>(
         &self,
-        connection: rc::Rc<C>,
+        connection: Arc<C>,
         default_colormap: u32,
     ) -> WmResult {
         connection.configure_window(self.window_id(), &self.with_borders().0.into())?;

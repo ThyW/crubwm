@@ -1,7 +1,7 @@
 use crate::errors::WmResult;
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::AtomEnum;
@@ -90,7 +90,7 @@ impl AtomStruct {
     pub fn get_property(
         &self,
         window: u32,
-        connection: Rc<impl Connection>,
+        connection: Arc<impl Connection>,
     ) -> WmResult<Vec<PropertyReturnValue>> {
         let mut ret = Vec::new();
 

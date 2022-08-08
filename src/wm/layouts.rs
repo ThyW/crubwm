@@ -6,7 +6,7 @@ use crate::{
     },
 };
 
-use std::rc::Rc;
+use std::sync::Arc;
 use x11rb::protocol::xproto::ConnectionExt;
 
 pub struct LayoutMask;
@@ -43,7 +43,7 @@ pub trait Layout<'a> {
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
-        connection: Rc<C>,
+        connection: Arc<C>,
         default_colormap: I,
         focused_client: Option<u32>,
     ) -> WmResult;
@@ -99,7 +99,7 @@ impl<'a> Layout<'a> for LayoutType {
         &self,
         screen: G,
         cs: (usize, std::collections::vec_deque::IterMut<Container>),
-        connection: Rc<C>,
+        connection: Arc<C>,
         default_colormap: I,
         focused_clinet: Option<u32>,
     ) -> WmResult {

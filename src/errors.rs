@@ -1,3 +1,5 @@
+use std::sync::PoisonError;
+
 #[derive(Debug)]
 pub enum Error {
     Generic(String),
@@ -16,6 +18,13 @@ pub enum Error {
     Fmt(std::fmt::Error),
     SystemTime(std::time::SystemTimeError),
     Cairo(cairo::Error),
+    MutexPoison,
+}
+
+impl<T> From<PoisonError<T>> for Error {
+    fn from(_: PoisonError<T>) -> Self {
+        Self::MutexPoison
+    }
 }
 
 impl From<cairo::Error> for Error {
@@ -138,6 +147,7 @@ impl std::fmt::Display for Error {
             Self::Fmt(e) => write!(f, "[ERR] {}", e),
             Self::SystemTime(e) => write!(f, "[ERR] {}", e),
             Self::Cairo(e) => write!(f, "[ERR] {}", e),
+            Self::MutexPoison => write!(f, "[ERR] bar mutex has been poisoned."),
         }
     }
 }
