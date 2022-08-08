@@ -47,6 +47,7 @@ impl Default for Keybinds {
             ),
             Keybind::new(vec![Key::Mod, Key::KeyS], Action::CycleLayout),
             Keybind::new(vec![Key::Mod, Key::Space], Action::ToggleFloat),
+            Keybind::new(vec![Key::Mod, Key::LShift, Key::KeyR], Action::ReloadConfig),
         ];
         Self(default_binds)
     }

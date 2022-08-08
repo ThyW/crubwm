@@ -31,7 +31,7 @@ The format for writing keybinds is as follows:
 keybind [list of keys] [action] [action arugments, ...]
 ```
 
-The line starts with the `keybind` keyword. It is followed by a string representing the keys which are being bound, an example might be: `<Alt><Shift>q` or `<LCtrl><cr>`. Notice, that some keys are passed in as inside of `<>` angled brackets. These are the special keys. Following is a table of the special keys.
+The line starts with the `keybind` keyword. It is followed by a string representing the keys which are being bound, an example might be: `<Alt><Shift>q` or `<LCtrl><cr>`. Notice, that some keys are passed in inside of `<>` angled brackets. These are the special keys. Following is a table of the special keys.
 
 | Key                  | Config representation                     |
 |-------------------   | -----------------------------------------   |
@@ -71,7 +71,7 @@ The line starts with the `keybind` keyword. It is followed by a string represent
 | Left Alt key         | `<alt_l>`, `<alt>`                          |
 | Left Alt key         | `<alt_r>`, `<ralt>`                         |
 
-It is also useful to note that the keys are not case sensitive, so `<ctrl>` is the same as `<Ctrl>` as well as `<CTRL>`.
+It is also useful to know that the keys are not case sensitive, so `<ctrl>` is the same as `<Ctrl>` as well as `<CTRL>`.
 
 After the keys comes the action argument. Actions are triggered by keybinds and they do some stuff based on their type. Some action also have arguments. Following is a list of the currently supported actions with their descriptions and optional arguments.
 
@@ -123,6 +123,7 @@ keybind "<Mod><Shift>l" swap next
 keybind "<Mod><Shift>h" swap previous
 keybind "<Mod>s" cycle_layout
 keybind "<Mod><space>" toggle_float
+keybind "<Mod><Shift>r" reload_config
 ```
 
 ## Hooks
