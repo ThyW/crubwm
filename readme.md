@@ -24,6 +24,8 @@ Configuration is done using the `~/config/crubwm/config` configuration file. Thi
 
 Alternatively, you can specify the `--config <file>`, where `<file>` is a path to a configuration file.
 
+A full guide on how to configure `crubwm` can be found [here](./docs/configuration-manual.md) 
+
 ## Defaults
 
 ```
@@ -73,7 +75,7 @@ TODO
 - [x] floating windows
 - [x] graphics, text and window decorations
 - [x] stacking layout
-- [ ] bar
+- [x] bar
 - [ ] EWMH and ICCC compliance
     - [ ] better way to represent and parse atoms
 - [x] startup hooks

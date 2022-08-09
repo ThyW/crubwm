@@ -84,9 +84,9 @@ impl TryFrom<&str> for LayoutType {
     type Error = crate::errors::Error;
     fn try_from(str: &str) -> Result<Self, Self::Error> {
         match str.to_lowercase().as_str() {
-            "tilingequalhorizontal" => Ok(Self::TilingEqualHorizontal),
-            "tilingequalvertical" => Ok(Self::TilingEqualVertical),
-            "tilingmasterstack" => Ok(Self::TilingMasterStack),
+            "tiling_equal_horizontal" => Ok(Self::TilingEqualHorizontal),
+            "tiling_equal_vertical" => Ok(Self::TilingEqualVertical),
+            "tiling_master_stack" => Ok(Self::TilingMasterStack),
             _ => {
                 Err(format!("layout error: \"{str}\" is not recognized as a valid layout.").into())
             }

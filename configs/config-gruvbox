@@ -48,6 +48,7 @@ set "gap_left_size" 2
 set "gap_right_size" 2
 
 hook "startup" sync "xsetroot -solid '#282828'"
+"hook" "startup" "async" "notify-send 'xd'"
 
 # bar settings
 bar_set 0 monitor "0"

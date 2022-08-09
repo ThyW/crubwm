@@ -18,22 +18,9 @@ pub struct Settings {
 
     /// A hexadecimal RGB representation of the window border color.
     ///
-    /// Default: #000000 (full black)
+    /// Default: #000000(full black)
     pub border_color: String,
 
-    /// True by default, render a bar on top of the window to show its name.
-    ///
-    /// Default: true
-    pub show_window_name: bool,
-    /// Where in the name bar should a window's name be shown.
-    ///
-    /// Can be:
-    ///     - left: left most part of window name tag
-    ///     - middle: in the middle of the winodw name tage
-    ///     - right: right most part of the window name tag
-    ///
-    /// Default: left
-    pub window_name_position: String,
     /// The display name to use when connecting to a X11 server.
     ///
     /// Default is an empty string, which tells the WM to use the value from the DISPLAY environmental
@@ -68,8 +55,6 @@ impl Default for Settings {
 
             border_color: "#000000".to_string(),
 
-            show_window_name: true,
-            window_name_position: "left".to_string(),
             display_name: "".to_string(),
 
             gap_top: false,
@@ -99,18 +84,6 @@ impl Settings {
             "border_color" => {
                 if value.starts_with('#') && value.len() == 7 {
                     self.border_color = value;
-                }
-            }
-            "show_window_name" => {
-                let val = value.to_lowercase().parse::<bool>()?;
-                self.show_window_name = val;
-            }
-            "window_name_position" => {
-                let val = value.to_lowercase();
-                if &val == "left" || &val == "right" || &val == "middle" {
-                    self.window_name_position = value;
-                } else {
-                    return Err(format!("option parsing error: Option {name} takes one of these arguments: left, middle, right; {value} was supplied.").into());
                 }
             }
             "display_name" => self.display_name = value,

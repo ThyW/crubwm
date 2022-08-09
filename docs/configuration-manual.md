@@ -127,9 +127,54 @@ keybind "<Mod><Shift>r" reload_config
 ```
 
 ## Hooks
+Hooks specify commands which are triggered when some events happen. In our case, these events are either initial startup of the window manager or a reload of the configuration file. These two types are specified by the `startup` and `always` arguments to the `hook` keyword. Another type of argument which should be specified is the synchronicity of the command executed. This sub argument also has two possible values: `sync` and `async`. The difference is quite obvious, `sync` halts the window manager's operation until the command exists and `async` just runs the command and doesn't care about when or how it exits. The general format for writing hooks is as follows:
+
+```
+hook [always | startup] [sync | async] [command/s to execute using /bin/sh -c ...]
+```
+
+An example comes from the default configuration files, where `xsetroot` is used to set the root window background color.
+```
+hook startup sync "xsetroot -solid '#282828'"
+```
+
+It is also important to note that `""` are not necessary, ever. They can, however, be useful when striving for higher readability of the configuration file. 
 
 ## WM settings
+Window manager settings are settings general to the whole of window manager. Their format is very simple, it's just the `set` keyword followed by the setting name and its value.
+```
+set [setting name] [setting value]
+```
+
+Following is a list of all currently supported options and their values.
+- `border` - a window have a border?
+    - possible values are `true` and `false`
+- `border_size` - how thick should the window border be?
+    - takes an **unsigned integer**: `1`, `20`
+- `border_color` - what color should the border be?
+    - a hexadecimal RGB value starting with `#`: `#282828`
+- `display_name` - name of the X11 display this WM should run on
+    - a string, if the default display should be used, pass in an empty string
+- `gap_top` , `gap_bottom`, `gap_left`,  `gap_right` - should there be gaps between windows for?
+    - possible values are `true` and `false`
+- `gap_top_size` , `gap_bottom_size`, `gap_left_size`,  `gap_right_size` - how big should the gaps between the windows should be?
+    - takes an **unsigned integer**: `1`, `10`
+    - if 0, there are no gaps
 
 ## Workspace settings
+Workspace settings are settings which are native to a single, specified workspace. By default, crubwm comes with 10 predefined workspaces, their ids ranging are 1 through 10. When adding a workspace setting, a workspace id must be specified.
+```
+workspace_set [setting name] [setting value/s]
+```
+
+Here is a list of all the currently supported workspace settings.
+
+- `name` - custom identifier for the workspace, this can be used to when drawing the status bar.
+    - a string value
+- `allowed_layouts` - a list of layouts that are available on the workspace.
+    - possible values are: `all`, `tiling_equal_horizontal`, `tiling_equal_vertical`, `tiling_master_stack`
+- `monitor` - workspaces are not dynamic, they have to be defined on a given monitor before running the window manager. This setting takes the monitor number and attempts to place the workspace on that monitor.
+- `default_container_type` - ***[Currently not supported]*** signals what type a window should be when created.
+    - possible values: `float`, `in_layout`
 
 ## Bar settings
