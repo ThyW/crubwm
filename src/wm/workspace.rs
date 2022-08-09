@@ -4,9 +4,10 @@ use super::focus_stack::FocusStack;
 use super::geometry::Geometry;
 use super::layouts::{Layout, LayoutType};
 use super::monitors::MonitorId;
+use crate::config::Config;
 use crate::errors::WmResult;
 
-use super::container::{Client, Container, ContainerId, ContainerList};
+use super::container::{Client, Container, ContainerId, ContainerList, ContainerTypeMask};
 
 #[derive(Clone, Debug)]
 pub struct Workspace {
@@ -40,6 +41,18 @@ impl Workspace {
             screen_size,
             monitor,
         }
+    }
+
+    pub fn container_type(&self, config: &Config) -> WmResult<u8> {
+        ContainerTypeMask::try_from(
+            config
+                .workspace_settings
+                .clone()
+                .into_iter()
+                .find(|ws| ws.identifier == self.id)
+                .unwrap()
+                .default_container_type,
+        )
     }
 
     /// Change the current workspace layout, given a string identifying the new layout.

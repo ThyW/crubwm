@@ -3,9 +3,9 @@ This document discusses how to configure the `crubwm` window manager. It is spli
 - [Configuration](#Configuration)
 - [Keybindings](#Keybinds)
 - [Hooks](#Hooks)
-- [WM settings](#WMsettings)
-- [Workspace settings](#Workspace_settings)
-- [Bar settings](#Bar_settings)
+- [WM settings](#wm-settings)
+- [Workspace settings](#workspace-settings)
+- [Bar settings](#bar-settings)
 
 ## Configuration
 The configuration of `crubwm` is loaded from a configuration file on startup. The configuration file is parsed, verified and then used. After that the rest of the window manager's utilities are run and setup. By default, `crubwm` looks for the configuration file located on the following path: `$XDG_CONFIG/crubwm/config`. If the file is not found, `crubwm` will attempt to create it and save the default settings into it. Alternatively, a `--config` command line option followed by the `path` to a desired configuration file can be used when running crubwm. The format of the configuration file shall be discussed in the following sections.
@@ -174,7 +174,7 @@ Here is a list of all the currently supported workspace settings.
 - `allowed_layouts` - a list of layouts that are available on the workspace.
     - possible values are: `all`, `tiling_equal_horizontal`, `tiling_equal_vertical`, `tiling_master_stack`
 - `monitor` - workspaces are not dynamic, they have to be defined on a given monitor before running the window manager. This setting takes the monitor number and attempts to place the workspace on that monitor.
-- `default_container_type` - ***[Currently not supported]*** signals what type a window should be when created.
+- `default_container_type` - signals what type a window should be when created.
     - possible values: `float`, `in_layout`
 
 ## Bar settings

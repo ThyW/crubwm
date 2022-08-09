@@ -9,9 +9,23 @@ use crate::{
     wm::geometry::{ClientAttributes, Geometry},
 };
 
-pub const CT_MASK_TILING: u8 = 1 << 0;
-pub const CT_MASK_FLOATING: u8 = 1 << 1;
-pub const CT_MASK_EMPTY: u8 = 1 << 2;
+pub struct ContainerTypeMask(u8);
+
+impl ContainerTypeMask {
+    pub const TILING: u8 = 1 << 0;
+    pub const FLOATING: u8 = 1 << 1;
+    const CT_MASK_EMPTY: u8 = 1 << 2;
+
+    pub fn try_from(c: String) -> WmResult<u8> {
+        let s = c.to_lowercase();
+
+        match &s[..] {
+            "in_layout" => Ok(Self::TILING),
+            "float" => Ok(Self::FLOATING),
+            _ => Err(format!("{c} is not a valid layout type string").into()),
+        }
+    }
+}
 
 /// Unique identifier for a client.
 pub type ClientId = u64;
@@ -215,7 +229,7 @@ impl Container {
         container_type_mask: T,
     ) -> Self {
         let container_type = match container_type_mask.into() {
-            CT_MASK_FLOATING => ContainerType::new(client.into()).into_floating().unwrap(),
+            ContainerTypeMask::FLOATING => ContainerType::new(client.into()).into_floating().unwrap(),
             _ => ContainerType::new(client.into()),
         };
 

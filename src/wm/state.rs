@@ -22,7 +22,7 @@ use crate::{
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
     wm::bar::Bar,
-    wm::container::{Client, ClientId, CT_MASK_TILING},
+    wm::container::{Client, ClientId},
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
     wm::layouts::LayoutMask,
@@ -34,7 +34,11 @@ use crate::{
 use std::{collections::HashMap, rc::Rc};
 use std::{ffi::CStr, sync::Arc};
 
-use super::{atoms::AtomStruct, container::ContainerType, layouts::LayoutType};
+use super::{
+    atoms::AtomStruct,
+    container::{ContainerType, ContainerTypeMask},
+    layouts::LayoutType,
+};
 
 pub struct State {
     connection: Arc<XCBConnection>,
@@ -762,11 +766,14 @@ impl State {
 
         let workspace = self.get_workspace_under_cursor_mut()?;
         let id = workspace.id;
+        let workspace_container_type = workspace
+            .container_type(&config)
+            .unwrap_or(ContainerTypeMask::TILING);
         self.focus_workspace(id, false)?;
 
         self.get_focused_workspace_mut()?.insert_client(
             Client::new_without_process_id(window, geometry, new_client_id, &config),
-            CT_MASK_TILING,
+            workspace_container_type,
         );
 
         let old_event_mask = self

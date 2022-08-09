@@ -18,7 +18,7 @@ impl WorkspaceSettings {
             name: format!("{}", identifier),
             monitor: "".to_string(),
             allowed_layouts: vec!["all".to_string()],
-            default_container_type: "tile".to_string(),
+            default_container_type: "in_layout".to_string(),
         }
     }
 
