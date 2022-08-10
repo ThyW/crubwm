@@ -1,6 +1,10 @@
 # About
 CrubWM is a hobby project, who's sole purpose is for me to learn how the X protocol works and use it to implement a window manager, in Rust of course. It is still by all means, a work in progress and a mess. See the [TOOD](#todo) section to see what is done and what awaits further attention.
 
+# Screenshots/Early rices.
+- `gruvbox` config
+![](./assets/gruvbox.png) 
+
 # Installation
 If you are building from source, make sure you have `cargo` installed. Also, make sure you have `Xlib` and `xcb` installed as well.
 

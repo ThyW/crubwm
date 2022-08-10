@@ -36,7 +36,10 @@ impl Default for Keybinds {
             Keybind::new(vec![Key::Mod, Key::LShift, Key::Key8], Action::Move(8)),
             Keybind::new(vec![Key::Mod, Key::LShift, Key::Key9], Action::Move(9)),
             Keybind::new(vec![Key::Mod, Key::KeyL], Action::Focus(Direction::Next)),
-            Keybind::new(vec![Key::Mod, Key::KeyH], Action::Focus(Direction::Previous)),
+            Keybind::new(
+                vec![Key::Mod, Key::KeyH],
+                Action::Focus(Direction::Previous),
+            ),
             Keybind::new(
                 vec![Key::Mod, Key::LShift, Key::KeyL],
                 Action::Swap(Direction::Next),

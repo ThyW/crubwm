@@ -229,7 +229,9 @@ impl Container {
         container_type_mask: T,
     ) -> Self {
         let container_type = match container_type_mask.into() {
-            ContainerTypeMask::FLOATING => ContainerType::new(client.into()).into_floating().unwrap(),
+            ContainerTypeMask::FLOATING => {
+                ContainerType::new(client.into()).into_floating().unwrap()
+            }
             _ => ContainerType::new(client.into()),
         };
 
