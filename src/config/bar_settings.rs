@@ -78,7 +78,7 @@ impl Default for WorkspaceSegmentSettings {
             normal_foreground_color: "#ffffff".to_string(),
             normal_background_color: "#333333".to_string(),
             font: "monospace".to_string(),
-            format: "{name}:{id}".into(),
+            format: " {name}:{id} ".into(),
         }
     }
 }

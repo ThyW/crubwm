@@ -1170,7 +1170,7 @@ impl State {
                 let size = container.geometry();
                 if let Some(window_to_focus) = container.window_id() {
                     workspace.focus.set_focused_client(window_to_focus);
-                    if matches!(layout, LayoutType::StackingHorizontal) {
+                    if matches!(layout, LayoutType::Stacking) {
                         workspace.apply_layout(connection.clone(), None, default_colormap)?;
                     }
                     connection.set_input_focus(

@@ -15,11 +15,11 @@ impl LayoutMask {
     pub const TILING_EQUAL_HORIZONTAL: u64 = 1 << 0;
     pub const TILING_EQUAL_VERTICAL: u64 = 1 << 1;
     pub const TILING_MASTER_STACK: u64 = 1 << 2;
-    pub const STACKING_HORIZONTAL: u64 = 1 << 3;
+    pub const STACKING: u64 = 1 << 3;
     pub const ALL: u64 = LayoutMask::TILING_EQUAL_HORIZONTAL
         | LayoutMask::TILING_EQUAL_VERTICAL
         | LayoutMask::TILING_MASTER_STACK
-        | LayoutMask::STACKING_HORIZONTAL;
+        | LayoutMask::STACKING;
 
     pub fn from_slice(slice: &[String]) -> WmResult<u64> {
         let mut mask = 0u64;
@@ -57,7 +57,7 @@ pub enum LayoutType {
     TilingEqualHorizontal = LayoutMask::TILING_EQUAL_HORIZONTAL,
     TilingEqualVertical = LayoutMask::TILING_EQUAL_VERTICAL,
     TilingMasterStack = LayoutMask::TILING_MASTER_STACK,
-    StackingHorizontal = LayoutMask::STACKING_HORIZONTAL,
+    Stacking = LayoutMask::STACKING,
 }
 
 impl LayoutType {
@@ -74,7 +74,7 @@ impl TryFrom<u64> for LayoutType {
             LayoutMask::TILING_EQUAL_HORIZONTAL => Ok(Self::TilingEqualHorizontal),
             LayoutMask::TILING_EQUAL_VERTICAL => Ok(Self::TilingEqualVertical),
             LayoutMask::TILING_MASTER_STACK => Ok(Self::TilingMasterStack),
-            LayoutMask::STACKING_HORIZONTAL => Ok(Self::StackingHorizontal),
+            LayoutMask::STACKING => Ok(Self::Stacking),
             _ => Err("layout error: invalid layout id.".into()),
         }
     }
@@ -87,6 +87,7 @@ impl TryFrom<&str> for LayoutType {
             "tiling_equal_horizontal" => Ok(Self::TilingEqualHorizontal),
             "tiling_equal_vertical" => Ok(Self::TilingEqualVertical),
             "tiling_master_stack" => Ok(Self::TilingMasterStack),
+            "stacking" => Ok(Self::Stacking),
             _ => {
                 Err(format!("layout error: \"{str}\" is not recognized as a valid layout.").into())
             }
@@ -253,7 +254,7 @@ impl<'a> Layout<'a> for LayoutType {
                     Ok(())
                 }
             }
-            Self::StackingHorizontal => {
+            Self::Stacking => {
                 let screen = screen.into();
                 if cs.0 == 0 {
                     return Ok(());
