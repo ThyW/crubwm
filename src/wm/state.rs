@@ -5,9 +5,9 @@ use x11rb::{
     protocol::{
         randr::get_monitors,
         xproto::{
-            ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
-            CreateWindowAux, EventMask, FocusInEvent, GrabMode, InputFocus, KeyPressEvent,
-            KeyReleaseEvent, Screen, StackMode, WindowClass,
+            AtomEnum, ButtonIndex, ChangeWindowAttributesAux, ClientMessageEvent,
+            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, FocusInEvent, GrabMode,
+            InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode, WindowClass,
         },
     },
     xcb_ffi::XCBConnection,
@@ -35,7 +35,7 @@ use std::{collections::HashMap, rc::Rc};
 use std::{ffi::CStr, sync::Arc};
 
 use super::{
-    atoms::AtomStruct,
+    atoms::{AtomStruct, PropertyReturnValue},
     container::{ContainerType, ContainerTypeMask},
     layouts::LayoutType,
 };
@@ -1138,7 +1138,30 @@ impl State {
 
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
-            if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
+            if let Some(protocols_atom) = self._atoms.get("WM_PROTOCOLS") {
+                let return_values = protocols_atom.get_property(window, self.connection())?;
+                if let Some(delete_atom) = self._atoms.get("WM_DELETE_WINDOW") {
+                    let atom = delete_atom.id();
+                    for return_value in return_values.iter() {
+                        if let PropertyReturnValue::Number(x) = return_value {
+                            if atom == *x {
+                                self.connection().send_event(
+                                    true,
+                                    window,
+                                    EventMask::NO_EVENT,
+                                    ClientMessageEvent::new(
+                                        32,
+                                        window,
+                                        AtomEnum::ATOM,
+                                        [atom, 0, 0, 0, 0],
+                                    ),
+                                )?;
+                                println!("done!");
+                            }
+                        }
+                    }
+                }
+            } else if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
                 let pid: u32 = pid_atom.get_property(window, self.connection())?[0]
                     .clone()
                     .try_into()?;

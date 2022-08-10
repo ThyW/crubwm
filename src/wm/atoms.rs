@@ -204,6 +204,8 @@ impl AtomManager {
             ("_NET_WM_USER_TIME", ValueType::Single(AtomEnum::CARDINAL)),
             ("_NET_FRAME_EXTENTS", ValueType::List(AtomEnum::CARDINAL, 4)),
             ("WM_NAME", ValueType::Single(AtomEnum::STRING)),
+            ("WM_DELETE_WINDOW", ValueType::Single(AtomEnum::ATOM)),
+            ("WM_PROTOCOLS", ValueType::List(AtomEnum::ATOM, 1024)),
         ];
 
         for (atom, value) in atoms {
