@@ -95,11 +95,7 @@ impl WorkspaceInfoSegment {
         settings: &WorkspaceSegmentSettings,
         geometry: Geometry,
     ) -> WmResult {
-        cr.select_font_face(
-            &settings.font,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
+        utils::cairo_font_from_str(cr, &settings.font)?;
         let text = self.value(settings.format.clone())?;
         let extents: TextExtents = cr.text_extents(&format!("-{text}-"))?.into();
         let (x, y) = cr.current_point()?;
@@ -135,11 +131,7 @@ impl WorkspaceInfoSegment {
         font_size: Option<f64>,
         settings: &WorkspaceSegmentSettings,
     ) -> WmResult<TextExtents> {
-        cr.select_font_face(
-            &settings.font,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
+        utils::cairo_font_from_str(cr, &settings.font)?;
 
         if let Some(size) = font_size {
             cr.set_font_size(size);

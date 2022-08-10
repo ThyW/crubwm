@@ -66,7 +66,7 @@ impl Widget {
         )
     }
 
-    fn _value(&self) -> WmResult<Vec<FormatToken>> {
+    fn value(&self) -> WmResult<Vec<FormatToken>> {
         let mut output: Vec<FormatToken> = Vec::new();
         let fmt = self.settings.format.clone();
 
@@ -104,12 +104,9 @@ impl Widget {
     }
 
     fn get_extent_info(&self, cr: &Context) -> WmResult<TextExtents> {
-        /* let (value, separator) = self.value_with_separator();
-        let text = format!("{}-{}-{}", separator, value, separator);
-        (text, self.settings.font.clone()) */
-
+        utils::cairo_font_from_str(cr, &self.settings.font)?;
         let mut extents = TextExtents::default();
-        let tokens = self._value()?;
+        let tokens = self.value()?;
 
         for token in tokens.iter() {
             let text = token.text();
@@ -131,17 +128,13 @@ impl Widget {
         position: Option<(f64, f64)>,
         geometry: Geometry,
     ) -> WmResult<f64> {
-        cr.select_font_face(
-            &self.settings.font,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
+        utils::cairo_font_from_str(cr, &self.settings.font)?;
 
         if let Some((x, y)) = position {
             cr.move_to(x, y)
         }
 
-        let tokens = self._value()?;
+        let tokens = self.value()?;
 
         let extents: TextExtents = self.get_extent_info(cr)?;
         let (x, y) = cr.current_point()?;

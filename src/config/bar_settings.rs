@@ -103,14 +103,8 @@ impl Default for WindowTitleSettings {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct IconTraySettings {}
-
-impl Default for IconTraySettings {
-    fn default() -> Self {
-        Self {}
-    }
-}
+#[derive(Clone, Debug, Default)]
+pub struct IconTraySettings;
 
 #[derive(Debug, Clone)]
 pub struct BarSettings {

@@ -22,11 +22,7 @@ impl TitlebarSegment {
     }
 
     pub fn get_text_extent(&self, cr: &Context, font_size: Option<f64>) -> WmResult<TextExtents> {
-        cr.select_font_face(
-            &self.settings.font,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
+        utils::cairo_font_from_str(cr, &self.settings.font)?;
         if let Some(size) = font_size {
             cr.set_font_size(size);
         }
@@ -38,11 +34,7 @@ impl TitlebarSegment {
             cr.move_to(x.into(), y.into());
         }
 
-        cr.select_font_face(
-            &self.settings.font,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
+        utils::cairo_font_from_str(cr, &self.settings.font)?;
 
         let extents = self.get_text_extent(cr, None)?;
 
