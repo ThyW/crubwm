@@ -5,9 +5,9 @@ use x11rb::{
     protocol::{
         randr::get_monitors,
         xproto::{
-            AtomEnum, ButtonIndex, ChangeWindowAttributesAux, ClientMessageEvent,
-            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, FocusInEvent, GrabMode,
-            InputFocus, KeyPressEvent, KeyReleaseEvent, Screen, StackMode, WindowClass,
+            ButtonIndex, ChangeWindowAttributesAux, ConfigureWindowAux, ConnectionExt,
+            CreateWindowAux, EventMask, FocusInEvent, GrabMode, InputFocus, KeyPressEvent,
+            KeyReleaseEvent, Screen, StackMode, WindowClass,
         },
     },
     xcb_ffi::XCBConnection,
@@ -22,13 +22,16 @@ use crate::{
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
     wm::bar::Bar,
-    wm::container::{Client, ClientId},
     wm::geometry::Geometry,
     wm::keyman::KeyManager,
     wm::layouts::LayoutMask,
     wm::monitors::Monitor,
     wm::workspace::Workspaces,
     wm::workspace::{Workspace, WorkspaceId},
+    wm::{
+        atoms,
+        container::{Client, ClientId},
+    },
 };
 
 use std::{collections::HashMap, rc::Rc};
@@ -197,7 +200,7 @@ impl State {
         let ws = self.get_focused_workspace()?;
         if let Some(win) = ws.focus.focused_client() {
             if let Some(atom) = self._atoms.get("_NET_WM_NAME") {
-                let ret = atom.get_property(win, self.connection())?;
+                let ret = atom.get_property(win, self.connection(), None)?;
                 if let Some(first) = ret.first() {
                     let str: String = first.clone().try_into()?;
                     if !str.is_empty() && ret_str.is_none() {
@@ -206,7 +209,7 @@ impl State {
                 }
             }
             if let Some(atom) = self._atoms.get("WM_NAME") {
-                let ret = atom.get_property(win, self.connection())?;
+                let ret = atom.get_property(win, self.connection(), None)?;
                 if let Some(first) = ret.first() {
                     let str: String = first.clone().try_into()?;
                     if !str.is_empty() && ret_str.is_none() {
@@ -738,6 +741,7 @@ impl State {
     }
 
     /// Become a window manager, take control of all open windows on the X server.
+    #[allow(unused)]
     pub fn become_wm(&mut self) -> WmResult {
         let connection = self.connection();
         let root_window = self.root_window();
@@ -1077,8 +1081,9 @@ impl State {
 
     pub fn handle_focus_in(&mut self, ev: &FocusInEvent) -> WmResult {
         let connection = self.connection();
-        if let Some(workspace) = self.workspace_for_window_mut(ev.event) {
-            if let Some(focused) = workspace.focus.focused_client() {
+        let workspace = self.get_focused_workspace()?;
+        if let Some(focused) = workspace.focus.focused_client() {
+            if ev.event != focused {
                 connection.set_input_focus(InputFocus::PARENT, focused, CURRENT_TIME)?;
             }
         }
@@ -1139,30 +1144,28 @@ impl State {
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
             if let Some(protocols_atom) = self._atoms.get("WM_PROTOCOLS") {
-                let return_values = protocols_atom.get_property(window, self.connection())?;
+                let return_values = protocols_atom.get_property(window, self.connection(), None)?;
                 if let Some(delete_atom) = self._atoms.get("WM_DELETE_WINDOW") {
                     let atom = delete_atom.id();
                     for return_value in return_values.iter() {
                         if let PropertyReturnValue::Number(x) = return_value {
                             if atom == *x {
-                                self.connection().send_event(
-                                    true,
+                                let c = self.connection();
+                                atoms::send_client_message(
+                                    c,
                                     window,
-                                    EventMask::NO_EVENT,
-                                    ClientMessageEvent::new(
-                                        32,
-                                        window,
-                                        AtomEnum::ATOM,
-                                        [atom, 0, 0, 0, 0],
-                                    ),
+                                    atom,
+                                    32,
+                                    &atom.to_ne_bytes(),
                                 )?;
                                 println!("done!");
                             }
                         }
                     }
                 }
-            } else if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
-                let pid: u32 = pid_atom.get_property(window, self.connection())?[0]
+            }
+            if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
+                let pid: u32 = pid_atom.get_property(window, self.connection(), None)?[0]
                     .clone()
                     .try_into()?;
                 let _ = std::process::Command::new("kill")
