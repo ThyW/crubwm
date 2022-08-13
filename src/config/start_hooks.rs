@@ -5,6 +5,7 @@ use crate::errors::{Error, WmResult};
 pub enum HookType {
     Startup,
     Always,
+    After,
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ impl TryFrom<String> for HookType {
         return match value.to_lowercase().as_ref() {
             "startup" => Ok(Self::Startup),
             "always" => Ok(Self::Always),
+            "after" => Ok(Self::After),
             _ => Err(format!("hook parsing error: Unable to parse hook type {value}").into()),
         };
     }
@@ -87,6 +89,29 @@ impl StartHooks {
                         .arg("-c")
                         .args(hook.hook_args.as_slice())
                         .spawn()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn run_after(&self) -> WmResult {
+        for hook in self.0.iter() {
+            if let HookType::After = hook.hook_type {
+                match hook.hook_option {
+                    HookOption::Sync => {
+                        let _ = std::process::Command::new("bash")
+                            .arg("-c")
+                            .args(hook.hook_args.as_slice())
+                            .spawn()?
+                            .wait()?;
+                    }
+                    HookOption::Async => {
+                        let _ = std::process::Command::new("bash")
+                            .arg("-c")
+                            .args(hook.hook_args.as_slice())
+                            .spawn()?;
+                    }
                 }
             }
         }

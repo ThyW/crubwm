@@ -78,9 +78,10 @@ impl Wm {
         // after setting up monitors and workspaces, setup up status bar
         self.state.setup_bars()?;
         // check for all open windows and manage them
-        self.state.become_wm()?;
+        // self.state.become_wm()?;
         // notify the window manager of the keybinds
         self.state.init_keyman(self.config.keybinds.clone())?;
+        // run the hooks after creating wm
 
         // run the bar update thread
         let bar_windows = self.state.bar_windows();
@@ -120,8 +121,19 @@ impl Wm {
 
         self.state.update_bars()?;
 
+        let mut first = false;
+        let mut ran = false;
+
         // run the event loop, don't stop on errors, just report them and keep going.
         loop {
+            if !first {
+                first = true;
+            } else {
+                if !ran {
+                    self.config.start_hooks.run_after()?;
+                    ran = true;
+                }
+            }
             self.state.connection().flush()?;
             self.state.update_bars()?;
             let event = self.state.connection().wait_for_event()?;
