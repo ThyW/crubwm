@@ -1080,10 +1080,11 @@ impl State {
     }
 
     pub fn handle_focus_in(&mut self, ev: &FocusInEvent) -> WmResult {
+        #[cfg(debug_assertions)]
+        println!("focus in in {}", ev.event);
         let connection = self.connection();
-        let workspace = self.get_focused_workspace()?;
-        if let Some(focused) = workspace.focus.focused_client() {
-            if ev.event != focused {
+        if let Some(workspace) = self.workspace_for_window(ev.event) {
+            if let Some(focused) = workspace.focus.focused_client() {
                 connection.set_input_focus(InputFocus::PARENT, focused, CURRENT_TIME)?;
             }
         }
@@ -1312,8 +1313,6 @@ impl State {
             )?;
         }
 
-        /* let window_config = ConfigureWindowAux::new().stack_mode(Some(StackMode::ABOVE));
-        connection.configure_window(focused_client_id, &window_config)?; */
         workspace.apply_layout(connection.clone(), None, default_colormap)?;
         connection.set_input_focus(InputFocus::PARENT, focused_client_id, CURRENT_TIME)?;
         connection.flush()?;
