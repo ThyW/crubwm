@@ -45,6 +45,15 @@ pub struct Settings {
     pub gap_bottom_size: u32,
     pub gap_left_size: u32,
     pub gap_right_size: u32,
+
+    /// Log file to write logs to
+    /// If "STDOUT" or "STDERR" is passed, logging will be done on stdout and stderr respectivelly.
+    pub log_file: String,
+    /// Logging level:
+    /// 0: disabled
+    /// 1: only the most importatnt logs will be logged.
+    /// 2: everything will be logged.
+    pub log_level: u8,
 }
 
 impl Default for Settings {
@@ -66,6 +75,8 @@ impl Default for Settings {
             gap_bottom_size: 0,
             gap_left_size: 0,
             gap_right_size: 0,
+            log_file: "STDERR".into(),
+            log_level: 0,
         }
     }
 }
@@ -126,6 +137,11 @@ impl Settings {
                 let val = value.to_lowercase().parse::<u32>()?;
 
                 self.gap_right_size = val;
+            }
+            "log_file" => self.log_file = value,
+            "log_level" => {
+                let val = value.to_lowercase().parse::<u8>()?;
+                self.log_level = val
             }
             _ => return Err(format!("option parsing error: Unknown option {name}").into()),
         }

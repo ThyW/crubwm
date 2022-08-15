@@ -18,7 +18,7 @@ pub use workspace_settings::*;
 #[allow(unused)]
 pub struct Config {
     pub keybinds: Keybinds,
-    pub options: Settings,
+    pub settings: Settings,
     pub start_hooks: StartHooks,
     pub workspace_settings: AllWorkspaceSettings,
     pub bar_settings: AllBarSettings,
@@ -30,7 +30,7 @@ impl Config {
         let mut string = String::new();
 
         string.push_str(&self.keybinds.repr()?);
-        string.push_str(&self.options.repr()?);
+        string.push_str(&self.settings.repr()?);
 
         Ok(&[])
     }

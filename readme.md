@@ -81,7 +81,7 @@ TODO
 - [x] stacking layout
 - [x] bar
 - [ ] EWMH and ICCC compliance
-    - [ ] better way to represent and parse atoms
+    - [x] better way to represent and parse atoms
 - [x] startup hooks
 - [x] config reloading on the fly
 - [ ] docs - most of the project has doc strings

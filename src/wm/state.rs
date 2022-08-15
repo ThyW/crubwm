@@ -51,7 +51,7 @@ pub struct State {
     focused_workspace: Option<WorkspaceId>,
     key_manager: KeyManager,
     last_client_id: ClientId,
-    _atoms: HashMap<String, AtomStruct>,
+    atoms: HashMap<String, AtomStruct>,
     is_dragging: bool,
     is_resizing: bool,
     config: Rc<Config>,
@@ -122,7 +122,7 @@ impl State {
             focused_workspace: None,
             key_manager: KeyManager::default(),
             last_client_id: 0,
-            _atoms: atoms,
+            atoms,
             is_dragging: false,
             is_resizing: false,
             config,
@@ -178,8 +178,7 @@ impl State {
     }
 
     /// Return the size of the root window.
-    #[allow(unused)]
-    fn root_geometry(&self) -> WmResult<Geometry> {
+    fn _root_geometry(&self) -> WmResult<Geometry> {
         let geom = self
             .connection()
             .get_geometry(self.root_window())?
@@ -199,7 +198,7 @@ impl State {
         let mut ret_str: Option<String> = None;
         let ws = self.get_focused_workspace()?;
         if let Some(win) = ws.focus.focused_client() {
-            if let Some(atom) = self._atoms.get("_NET_WM_NAME") {
+            if let Some(atom) = self.atoms.get("_NET_WM_NAME") {
                 let ret = atom.get_property(win, self.connection(), None)?;
                 if let Some(first) = ret.first() {
                     let str: String = first.clone().try_into()?;
@@ -208,7 +207,7 @@ impl State {
                     }
                 }
             }
-            if let Some(atom) = self._atoms.get("WM_NAME") {
+            if let Some(atom) = self.atoms.get("WM_NAME") {
                 let ret = atom.get_property(win, self.connection(), None)?;
                 if let Some(first) = ret.first() {
                     let str: String = first.clone().try_into()?;
@@ -718,8 +717,7 @@ impl State {
 
     /// Retrun an immutable reference to the monitor which the workspace with the given id is
     /// currently on.
-    #[allow(unused)]
-    fn monitor_for_workspace(&self, workspace_id: WorkspaceId) -> WmResult<&Monitor> {
+    fn _monitor_for_workspace(&self, workspace_id: WorkspaceId) -> WmResult<&Monitor> {
         for monitor in self.monitors.iter() {
             if monitor.contains(&workspace_id) {
                 return Ok(monitor);
@@ -1079,6 +1077,7 @@ impl State {
         Ok(())
     }
 
+    /// Handle a focus in event.
     pub fn handle_focus_in(&mut self, ev: &FocusInEvent) -> WmResult {
         #[cfg(debug_assertions)]
         println!("focus in in {}", ev.event);
@@ -1111,6 +1110,7 @@ impl State {
         Ok(())
     }
 
+    /// Execute a command.
     fn action_execute(&mut self, command: String) -> WmResult {
         // TODO: get rid of this on release
         #[cfg(debug_assertions)]
@@ -1142,11 +1142,12 @@ impl State {
         Ok(())
     }
 
+    /// Attempt to kill a client.
     fn action_kill(&mut self) -> WmResult {
         if let Some(window) = self.get_focused_workspace_mut()?.focus.focused_client() {
-            if let Some(protocols_atom) = self._atoms.get("WM_PROTOCOLS") {
+            if let Some(protocols_atom) = self.atoms.get("WM_PROTOCOLS") {
                 let return_values = protocols_atom.get_property(window, self.connection(), None)?;
-                if let Some(delete_atom) = self._atoms.get("WM_DELETE_WINDOW") {
+                if let Some(delete_atom) = self.atoms.get("WM_DELETE_WINDOW") {
                     let atom = delete_atom.id();
                     for return_value in return_values.iter() {
                         if let PropertyReturnValue::Number(x) = return_value {
@@ -1157,15 +1158,16 @@ impl State {
                                     window,
                                     atom,
                                     32,
-                                    &atom.to_ne_bytes(),
+                                    &atom.to_be_bytes(),
                                 )?;
-                                println!("done!");
+                                self.connection.flush()?;
+                                return Ok(());
                             }
                         }
                     }
                 }
             }
-            if let Some(pid_atom) = self._atoms.get("_NET_WM_PID") {
+            if let Some(pid_atom) = self.atoms.get("_NET_WM_PID") {
                 let pid: u32 = pid_atom.get_property(window, self.connection(), None)?[0]
                     .clone()
                     .try_into()?;
@@ -1178,6 +1180,7 @@ impl State {
         Ok(())
     }
 
+    /// Focus a window given a direction.
     fn action_focus(&mut self, direction: Direction) -> WmResult {
         let connection = self.connection();
         let default_colormap = self.default_colormap();
@@ -1222,12 +1225,14 @@ impl State {
         Ok(())
     }
 
+    /// Go to a specified workspace.
     fn action_goto(&mut self, workspace_id: WorkspaceId) -> WmResult {
         self.focus_workspace(workspace_id, true)?;
 
         Ok(())
     }
 
+    /// Move the focused window onto a specified workspace.
     fn action_move(&mut self, workspace_id: WorkspaceId) -> WmResult {
         // get currently focused client id, retrieve it from its workspace, find the other
         // workspace and move the client to that second workspace
@@ -1271,6 +1276,7 @@ impl State {
         Ok(())
     }
 
+    /// Change to a specified layout.
     fn action_change_layout(&mut self, layout: String) -> WmResult {
         let connection = self.connection();
         let default_colormap = self.default_colormap();
@@ -1282,6 +1288,7 @@ impl State {
         Ok(())
     }
 
+    /// Switch to the next layout.
     fn action_cycle_layout(&mut self) -> WmResult {
         let default_colormap = self.default_colormap();
         let connection = self.connection();
@@ -1292,6 +1299,7 @@ impl State {
         Ok(())
     }
 
+    /// Make the focused window float, or if floating, tile it.
     fn action_toggle_float(&mut self) -> WmResult {
         let connection = self.connection();
         let focused_client_id = match self.get_focused_workspace_mut()?.focus.focused_client() {
@@ -1356,15 +1364,31 @@ impl State {
         self.config = Rc::new(config);
         let connection = self.connection();
         let root_window = self.root_window();
-        let screen_geom = self.root_geometry()?;
+
+        let geoms: Vec<(u32, Geometry)> = self
+            .monitors
+            .iter()
+            .map(|monitor| (monitor.id(), monitor.size()))
+            .collect();
+
+        let windows = connection.query_tree(root_window)?.reply()?.children;
+        let mut to_remove = Vec::new();
 
         // redo keybinds
         self.init_keyman(self.config.keybinds.clone())?;
         // regrab keys for all clients, reapply client attributes and reapply layouts
         for workspace in self.workspaces.iter_mut() {
-            workspace.set_screen(screen_geom);
+            for geom in geoms.iter() {
+                if workspace.monitor == geom.0 {
+                    workspace.set_screen(geom.1)
+                }
+            }
+            let id = workspace.id;
             for container in workspace.containers_mut().iter_mut() {
                 if let Some(window_id) = container.data().window_id() {
+                    if !windows.contains(&window_id) {
+                        to_remove.push((id, window_id))
+                    }
                     connection.ungrab_button(ButtonIndex::ANY, window_id, ANY_MOD_KEY_MASK)?;
                     connection.grab_button(
                         true,
@@ -1399,6 +1423,12 @@ impl State {
             }
 
             workspace.apply_layout(connection.clone(), None, self.default_colormap)?;
+        }
+
+        for each in to_remove {
+            self.workspace_with_id_mut(each.0)
+                .unwrap()
+                .remove_window(each.1)?;
         }
 
         // reapply bar settings

@@ -201,7 +201,7 @@ impl ConfigParser {
                         setting_name: option_name,
                         setting_value: option_value,
                     } => {
-                        ret.options.add(option_name, option_value)?;
+                        ret.settings.add(option_name, option_value)?;
                     }
                     ConfigLine::WorkspaceSetting {
                         workspace_identifier,
@@ -288,8 +288,6 @@ impl TryFrom<String> for ConfigLine {
     type Error = Error;
 
     fn try_from(line: String) -> WmResult<Self> {
-        #[cfg(debug_assertions)]
-        println!("[DEBUG] parsing config line: {line}");
         if let Some(s) = line.strip_prefix("keybind ") {
             let rest_of_line = s;
             let parser = LineParser::parse(rest_of_line.to_string());

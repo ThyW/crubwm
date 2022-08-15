@@ -11,6 +11,7 @@ use x11rb::{
 use crate::{
     config::Config,
     errors::WmResult,
+    log::{log, LL_ALL, LL_NORMAL},
     parsers::{Command, CommandType},
     wm::state::State,
 };
@@ -48,8 +49,8 @@ impl Wm {
     /// Create a new window manager instance.
     pub fn new(config: Config) -> WmResult<Self> {
         let c = config.clone();
-        let display_name = match c.options.display_name.is_empty() {
-            false => Some(c.options.display_name.as_str()),
+        let display_name = match c.settings.display_name.is_empty() {
+            false => Some(c.settings.display_name.as_str()),
             true => None,
         };
 
@@ -70,6 +71,8 @@ impl Wm {
                 return Ok(());
             }
         }
+
+        log("Logger initialized.", LL_NORMAL);
 
         // run startup hooks
         self.config.start_hooks.run()?;
@@ -100,6 +103,7 @@ impl Wm {
                 if last_time.elapsed().as_secs() >= 1 {
                     last_time = std::time::Instant::now();
                     for win in bar_windows.iter() {
+                        log("changing property for bar window.", LL_NORMAL);
                         if conn
                             .change_property(
                                 PropMode::REPLACE,
@@ -128,11 +132,9 @@ impl Wm {
         loop {
             if !first {
                 first = true;
-            } else {
-                if !ran {
-                    self.config.start_hooks.run_after()?;
-                    ran = true;
-                }
+            } else if !ran {
+                self.config.start_hooks.run_after()?;
+                ran = true;
             }
             self.state.connection().flush()?;
             self.state.update_bars()?;

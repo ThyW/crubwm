@@ -95,9 +95,9 @@ impl From<Geometry> for ConfigureWindowAux {
 
 impl From<Config> for ClientAttributes {
     fn from(c: Config) -> Self {
-        let gaps = c.options.get_gaps();
-        let border = c.options.get_borders();
-        let border_color = c.options.convert_border_color();
+        let gaps = c.settings.get_gaps();
+        let border = c.settings.get_borders();
+        let border_color = c.settings.convert_border_color();
         Self {
             gap_top: gaps.0,
             gap_bottom: gaps.1,
