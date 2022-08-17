@@ -9,9 +9,9 @@ use std::sync::{
 
 use crate::config::WmResult;
 
-pub const LL_OFF: u8 = 0;
+const LL_OFF: u8 = 0;
 pub const LL_NORMAL: u8 = 1;
-pub const LL_ALL: u8 = 2;
+pub const LL_FULL: u8 = 2;
 
 pub const LF_STDOUT: &str = "STDOUT";
 pub const LF_STDERR: &str = "STDERR";
@@ -57,8 +57,10 @@ pub fn prepare_logger(file: &impl AsRef<str>, level: u8) -> WmResult {
 }
 
 pub fn log<T: AsRef<str> + ?Sized>(msg: &T, level: u8) -> bool {
+    // unsafe go brrrrrr lol
+    // pls don't scream at me, i know it's bad
     unsafe {
-        if level >= LOG_LEVEL.load(Ordering::Relaxed) && level != LL_OFF {
+        if level <= LOG_LEVEL.load(Ordering::Relaxed) && level != LL_OFF {
             if let Ok(guard) = WRITER.lock() {
                 if guard.is_some() {
                     let fd = guard.as_ref().unwrap();

@@ -228,7 +228,7 @@ impl Bar {
     }
 
     /// Get the id of the bar.
-    pub fn _id(&self) -> u32 {
+    pub fn id(&self) -> u32 {
         self._id
     }
 

@@ -163,6 +163,10 @@ Following is a list of all currently supported options and their values.
 - `gap_top_size` , `gap_bottom_size`, `gap_left_size`,  `gap_right_size` - how big should the gaps between the windows should be?
     - takes an **unsigned integer**: `1`, `10`
     - value `0` does not display gaps.
+- `log_level` - how much information should be logged.
+    - possible are three values: `0` - disable logging; `1` - light logging; `2` - log everything.
+- `log_file` - path to a log file.
+    - this takes a string, however, there are 2 reserved strings: `STDOUT` and `STDERR` which instead of writing to a file, write to `stdin` and `stdout` respectively.
 
 ## Workspace settings
 Workspace settings are settings which are native to a single, specified workspace. By default, crubwm comes with 10 predefined workspaces, their ids ranging from 1 through to 10. When adding a workspace setting, a workspace id must be specified.

@@ -1,6 +1,6 @@
 use crate::config::Repr;
 use crate::errors::{Error, WmResult};
-use crate::log::{log, LL_ALL};
+use crate::log::{log, LL_FULL};
 
 #[derive(Debug, Clone)]
 pub enum HookType {
@@ -80,8 +80,8 @@ impl StartHooks {
             match hook.hook_option {
                 HookOption::Sync => {
                     log(
-                        &format!("Running sync hook: {}", hook.hook_args.join(" ")),
-                        LL_ALL,
+                        &format!("Running sync hook: '{}'", hook.hook_args.join(" ")),
+                        LL_FULL,
                     );
                     let _ = std::process::Command::new("bash")
                         .arg("-c")
@@ -91,8 +91,8 @@ impl StartHooks {
                 }
                 HookOption::Async => {
                     log(
-                        &format!("Running async hook: {}", hook.hook_args.join(" ")),
-                        LL_ALL,
+                        &format!("Running async hook: '{}'", hook.hook_args.join(" ")),
+                        LL_FULL,
                     );
                     let _ = std::process::Command::new("bash")
                         .arg("-c")
@@ -110,8 +110,8 @@ impl StartHooks {
                 match hook.hook_option {
                     HookOption::Sync => {
                         log(
-                            &format!("Running after sync hook: {}", hook.hook_args.join(" ")),
-                            LL_ALL,
+                            &format!("Running after sync hook: '{}'", hook.hook_args.join(" ")),
+                            LL_FULL,
                         );
                         let _ = std::process::Command::new("bash")
                             .arg("-c")
@@ -121,8 +121,8 @@ impl StartHooks {
                     }
                     HookOption::Async => {
                         log(
-                            &format!("Running after async hook: {}", hook.hook_args.join(" ")),
-                            LL_ALL,
+                            &format!("Running after async hook: '{}'", hook.hook_args.join(" ")),
+                            LL_FULL,
                         );
                         let _ = std::process::Command::new("bash")
                             .arg("-c")

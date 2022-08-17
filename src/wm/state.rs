@@ -18,6 +18,7 @@ use crate::{
     config::{Config, Keybinds},
     errors::{Error, WmResult},
     ffi::find_xcb_visualtype,
+    log::{log, LL_FULL, LL_NORMAL},
     parsers::ConfigParser,
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
@@ -137,6 +138,7 @@ impl State {
 
     /// Initiate the `KeyManager` with the Keybindings loaded in from a configuration file.
     pub fn init_keyman(&mut self, binds: Keybinds) -> WmResult {
+        log("Initializing keyboard manager.", LL_NORMAL);
         let dpy = self.display();
         self.key_manager.init(dpy, &binds)?;
 
@@ -145,6 +147,7 @@ impl State {
             .ungrab_key(ANY_KEY_MASK, self.root_window(), ANY_MOD_KEY_MASK)?;
 
         if let Some(mask) = self.key_manager.get_floating_modifier() {
+            log(&format!("Floating modifier mask is {mask}"), LL_FULL);
             self.floating_modifier = mask;
         }
 
@@ -278,19 +281,26 @@ impl State {
     ///
     /// This method is also responsible for the creation and setup of monitors.
     pub fn init_workspaces(&mut self) -> WmResult {
+        log("Initializing workspaces...", LL_NORMAL);
         self.setup_monitors()?;
         for workspace_settings in self.config.workspace_settings.clone().into_iter() {
             let layout_mask = LayoutMask::from_slice(&workspace_settings.allowed_layouts)?;
             let (monitor_index, screen_size) =
                 self.get_screen_size_for_workspace(workspace_settings.monitor.clone())?;
-            self.workspaces.push(Workspace::new(
+            let workspace = Workspace::new(
                 workspace_settings.name.clone(),
                 workspace_settings.identifier,
                 layout_mask,
                 self.root_window(),
                 screen_size,
                 self.monitors[monitor_index].id(),
-            ));
+            );
+
+            log(
+                &format!("Setting up a new workspace: {workspace:?}"),
+                LL_FULL,
+            );
+            self.workspaces.push(workspace);
             self.monitors[monitor_index].add_workspace(workspace_settings.identifier)
         }
         for monitor in self.monitors.iter_mut() {
@@ -321,6 +331,7 @@ impl State {
 
     /// Create and setup monitors for workspaces.
     fn setup_monitors(&mut self) -> WmResult {
+        log("Setting up monitors...", LL_NORMAL);
         let monitor_reply =
             get_monitors(self.connection().as_ref(), self.root_window(), false)?.reply()?;
         let mut current_monitor_id = 0u32;
@@ -328,6 +339,7 @@ impl State {
         for monitor_info in monitor_reply.monitors {
             current_monitor_id += 1;
             let monitor = Monitor::from_monitor_info(monitor_info, current_monitor_id)?;
+            log(&format!("Discovered monitor: {monitor:?}"), LL_FULL);
             self.monitors.push(monitor)
         }
 
@@ -338,6 +350,7 @@ impl State {
     pub fn setup_bars(&mut self) -> WmResult {
         // indicates, that there already is a icon tray and that all all further trays should be
         // ingored
+        log("Setting up status bars...", LL_NORMAL);
         let mut _has_tray = false;
         let mut bars = Vec::new();
         // intitial bar construction
@@ -487,6 +500,23 @@ impl State {
             self.bar_windows.push(window_id);
             self.connection().map_window(window_id)?;
             self.connection().flush()?;
+
+            log(
+                &format!(
+                    "Constructed a bar with id {} on monitor: {}; Bar window is {window_id}.",
+                    bar.id(),
+                    bar.monitor()
+                ),
+                LL_NORMAL,
+            );
+            log(
+                &format!(
+                    "Bar with id {} settings has settings: {:?}",
+                    bar.id(),
+                    bar.settings()
+                ),
+                LL_FULL,
+            );
         }
 
         self.bars = bars;
@@ -498,7 +528,7 @@ impl State {
     pub fn update_bars(&mut self) -> WmResult {
         let window_name = self
             .focused_window_name()
-            .unwrap_or_else(|_| "NAN".to_string());
+            .unwrap_or_else(|_| "N/A".to_string());
         for bar in self.bars.iter_mut() {
             let monitors: Vec<&Monitor> = self
                 .monitors
@@ -663,6 +693,8 @@ impl State {
 
         let workspace = self.get_focused_workspace()?;
         let size = workspace.screen();
+
+        log(&format!("Focused workspace is: {}", workspace.id), LL_FULL);
 
         if warp_pointer {
             self.connection().warp_pointer(
