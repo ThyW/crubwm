@@ -11,7 +11,7 @@ use x11rb::{
 use crate::{
     config::Config,
     errors::WmResult,
-    log::{log, LL_FULL, LL_NORMAL},
+    log::{log, LL_NORMAL},
     parsers::{Command, CommandType},
     wm::state::State,
 };
