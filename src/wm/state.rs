@@ -35,11 +35,11 @@ use crate::{
     },
 };
 
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 use std::{ffi::CStr, sync::Arc};
 
 use super::{
-    atoms::{AtomStruct, PropertyReturnValue},
+    atoms::PropertyReturnValue,
     container::{ContainerType, ContainerTypeMask},
     layouts::LayoutType,
 };
@@ -52,7 +52,7 @@ pub struct State {
     focused_workspace: Option<WorkspaceId>,
     key_manager: KeyManager,
     last_client_id: ClientId,
-    atoms: HashMap<String, AtomStruct>,
+    atoms: Rc<AtomManager>,
     is_dragging: bool,
     is_resizing: bool,
     config: Rc<Config>,
@@ -113,7 +113,7 @@ impl State {
         connection.change_window_attributes(root_window, &change)?;
         connection.flush()?;
 
-        let atoms = AtomManager::init_atoms(&connection)?;
+        let atoms = Rc::new(AtomManager::init_atoms(&connection)?);
 
         Ok(Self {
             connection: Arc::<XCBConnection>::new(connection),
@@ -194,6 +194,10 @@ impl State {
     /// Return the X id of the default colormap
     fn default_colormap(&self) -> u32 {
         self.default_colormap
+    }
+
+    fn atoms(&self) -> Rc<AtomManager> {
+        self.atoms.clone()
     }
 
     /// Try and return the value of the `_NET_WM_NAME` or `WM_NAME` properties for the currently focused window.
@@ -1339,11 +1343,42 @@ impl State {
             None => return Err("clinet focus error: there is no client currently in focus.".into()),
         };
         let default_colormap = self.default_colormap();
+        let atoms = self.atoms();
         let workspace = self.get_focused_workspace_mut()?;
 
         let container = workspace.find_by_window_id_mut(focused_client_id)?;
+        let window = container.data().window_id().unwrap();
 
         if container.is_in_layout() {
+            // TODO: should be taking WM_SIZE_HINTS from some properties cache.
+            if let Ok(PropertyReturnValue::WmSizeHints(hints)) = atoms
+                .get("WM_NORMAL_HINTS")
+                .unwrap()
+                .get_property(
+                    container.data().window_id().unwrap(),
+                    connection.clone(),
+                    None,
+                )?
+                .first()
+                .ok_or_else(|| {
+                    Error::Generic("NORMAL_HINTS not set for the focused window.".into())
+                })
+            {
+                let new_geom = hints.into();
+                log(
+                    &format!("WM_NORMAL_HINTS for window {window} are: {:?}", hints),
+                    LL_FULL,
+                );
+                container.data_mut().set_geometry(new_geom);
+                connection.configure_window(
+                    window,
+                    &ConfigureWindowAux::new()
+                        .x(new_geom.x as i32)
+                        .y(new_geom.y as i32)
+                        .width(new_geom.width as u32)
+                        .height(new_geom.height as u32),
+                )?;
+            }
             container.change_to_floating()?
         } else {
             container.change_to_layout()?;

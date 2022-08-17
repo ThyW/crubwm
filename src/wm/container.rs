@@ -68,6 +68,7 @@ impl std::fmt::Display for ContainerId {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Client {
+    // TODO: Should have a properties cache.
     window_id: u32,
     process_id: u32,
     pub geometry: Geometry,
@@ -349,6 +350,15 @@ impl ContainerType {
             Self::Empty(g) => *g,
             Self::InLayout(c) => c.geometry,
             Self::Floating(c) => c.geometry,
+        }
+    }
+
+    /// Set the client geometry.
+    pub fn set_geometry(&mut self, geom: Geometry) {
+        match self {
+            Self::Empty(g) => *g = geom,
+            Self::InLayout(c) => c.geometry = geom,
+            Self::Floating(c) => c.geometry = geom,
         }
     }
 

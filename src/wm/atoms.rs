@@ -1,25 +1,44 @@
+//! This is the Inter Client Communication API. This file contains a few structures which help with
+//! interclient communication.
+//!
+//! Every atom which is used by the window manager is created and stored in a HashMap of the Atom
+//! names and `AtomStruct`s. These `AtomStruct`s are a convenient tool for quick and perilless
+//! interclient communication and property response parsing.
+//!
+//! This file also contains the `send_client_message` function which is a generic abstraction for
+//! sending client messages to different clients.
 use crate::errors::WmResult;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use x11rb::connection::Connection;
+use x11rb::properties::WmClass;
+use x11rb::properties::WmHints;
+use x11rb::properties::WmSizeHints;
 use x11rb::protocol::xproto::AtomEnum;
 use x11rb::protocol::xproto::ClientMessageEvent;
 use x11rb::protocol::xproto::ConnectionExt;
 use x11rb::protocol::xproto::EventMask;
 
-const FOURKB: usize = 1024 * 4;
+/// Maximum amount of bytes able to receive from a `get_property` reply.
+const MEG: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How a property response value should be interpreted.
 pub enum ValueType {
+    /// The response contains a single value of with the given atom type.
     Single(AtomEnum),
+    /// The response contains a list N of values with the given type.
     List(AtomEnum, usize),
+    /// The response contains a N element list of M element lists of values with the given atom
+    /// type.
     ListOfLists(usize, AtomEnum, usize),
 }
 
 impl ValueType {
     #[allow(unused)]
+    /// Return the atom representing the response value type.
     pub fn atom(&self) -> &AtomEnum {
         match self {
             Self::Single(a) => a,
@@ -29,12 +48,38 @@ impl ValueType {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct WmClassWrapper {
+    pub class: Option<String>,
+    pub instance: Option<String>,
+}
+
+impl WmClassWrapper {
+    fn from_class(c: &WmClass) -> Self {
+        let class = String::from_utf8(c.class().to_vec()).ok();
+        let instance = String::from_utf8(c.instance().to_vec()).ok();
+
+        Self { class, instance }
+    }
+}
+
 #[derive(Clone, Debug)]
+/// An enumeration of the parsed property return values.
 pub enum PropertyReturnValue {
+    /// A simple UTF-8 encoded string.
     String(String),
+    /// A single byte.
     Byte(u8),
+    /// A 16-bit unsigned integer.
     DoubleByte(u16),
+    /// A 32-bit unsigned integer.
     Number(u32),
+    /// A WmHints structure.
+    WmHints(WmHints),
+    /// A WmSizeHints structure.
+    WmSizeHints(WmSizeHints),
+    /// A WmClassWrapper structure, used for .
+    WmClass(WmClassWrapper),
 }
 
 impl TryInto<u32> for PropertyReturnValue {
@@ -57,16 +102,19 @@ impl TryInto<String> for PropertyReturnValue {
     }
 }
 
-pub struct AtomManager;
+pub struct AtomManager {
+    atoms: HashMap<String, AtomWrapper>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct AtomStruct {
+pub struct AtomWrapper {
     name: &'static str,
     x_id: u32,
     value: ValueType,
 }
 
-impl AtomStruct {
+impl AtomWrapper {
+    /// Create a new AtomWrapper.
     pub fn new(name: &'static str, x_id: impl Into<u32>, value: ValueType) -> Self {
         Self {
             name,
@@ -75,27 +123,34 @@ impl AtomStruct {
         }
     }
 
+    /// Return the name of the atom.
     pub fn _name(&self) -> &str {
         self.name
     }
 
+    /// Return the atom id.
     pub fn id(&self) -> u32 {
         self.x_id
     }
 
+    /// Return the response value type of the atom.
     pub fn value_type(&self) -> ValueType {
         self.value
     }
 
-    pub fn byte_amount(&self, format: Option<u8>) -> usize {
+    /// Return the amount of bytes which will be requested from the server, depending on the size
+    /// of the list and format of the data.
+    fn byte_amount(&self, format: Option<u8>) -> usize {
         let format = format.unwrap_or(32) as usize;
         match self.value_type() {
-            ValueType::Single(_) => FOURKB as usize,
+            ValueType::Single(_) => MEG as usize,
             ValueType::List(_, len) => len * format,
             ValueType::ListOfLists(len1, _, len2) => len1 * len2 * format,
         }
     }
 
+    /// Try to get a property from the server and return a vector of PropertyReturnValues which
+    /// contains the parsed reply data.
     pub fn get_property(
         &self,
         window: u32,
@@ -126,6 +181,20 @@ impl AtomStruct {
                 ret.push(PropertyReturnValue::String(String::from_utf8(
                     value.collect::<Vec<u8>>(),
                 )?));
+            }
+        } else if type_ == AtomEnum::WM_HINTS {
+            if let Ok(hints) = WmHints::from_reply(&reply) {
+                ret.push(PropertyReturnValue::WmHints(hints))
+            }
+        } else if type_ == AtomEnum::WM_SIZE_HINTS {
+            if let Ok(hints) = WmSizeHints::from_reply(&reply) {
+                ret.push(PropertyReturnValue::WmSizeHints(hints))
+            }
+        } else if type_ == AtomEnum::WM_CLASS {
+            if let Ok(class) = WmClass::from_reply(reply) {
+                ret.push(PropertyReturnValue::WmClass(WmClassWrapper::from_class(
+                    &class,
+                )))
             }
         } else if let Some(fmt) = format {
             match fmt {
@@ -163,23 +232,17 @@ impl AtomStruct {
 }
 
 impl AtomManager {
-    /// Initialize all atoms.
-    pub fn init_atoms(c: &impl Connection) -> WmResult<HashMap<String, AtomStruct>> {
-        let mut hm = HashMap::new();
+    /// Initialize all atoms used by the window manager.
+    pub fn init_atoms(c: &impl Connection) -> WmResult<Self> {
+        let mut atoms = HashMap::new();
         // https://en.wikipedia.org/wiki/Extended_Window_Manager_Hints
-        let atoms = [
+        let atoms_def = [
             // root window
-            (
-                "_NET_SUPPORTED",
-                ValueType::List(AtomEnum::CARDINAL, FOURKB),
-            ),
-            (
-                "_NET_CLIENT_LIST",
-                ValueType::List(AtomEnum::WINDOW, FOURKB),
-            ),
+            ("_NET_SUPPORTED", ValueType::List(AtomEnum::CARDINAL, MEG)),
+            ("_NET_CLIENT_LIST", ValueType::List(AtomEnum::WINDOW, MEG)),
             (
                 "_NET_NUMBER_OF_DESKTOPS",
-                ValueType::List(AtomEnum::CARDINAL, FOURKB),
+                ValueType::List(AtomEnum::CARDINAL, MEG),
             ),
             (
                 "_NET_DESKTOP_GEOMETRY",
@@ -187,29 +250,23 @@ impl AtomManager {
             ),
             (
                 "_NET_DESKTOP_VIEWPORT",
-                ValueType::ListOfLists(FOURKB, AtomEnum::CARDINAL, 2),
+                ValueType::ListOfLists(MEG, AtomEnum::CARDINAL, 2),
             ),
             (
                 "_NET_CURRENT_DESKTOP",
                 ValueType::Single(AtomEnum::CARDINAL),
             ),
-            (
-                "_NET_DESKTOP_NAMES",
-                ValueType::List(AtomEnum::STRING, FOURKB),
-            ),
+            ("_NET_DESKTOP_NAMES", ValueType::List(AtomEnum::STRING, MEG)),
             ("_NET_ACTIVE_WINDOW", ValueType::Single(AtomEnum::WINDOW)),
             (
                 "_NET_WORKAREA",
-                ValueType::ListOfLists(FOURKB, AtomEnum::CARDINAL, 4),
+                ValueType::ListOfLists(MEG, AtomEnum::CARDINAL, 4),
             ),
             (
                 "_NET_SUPPORTING_WM_CHECK",
                 ValueType::Single(AtomEnum::WINDOW),
             ),
-            (
-                "_NET_VIRTUAL_ROOTS",
-                ValueType::List(AtomEnum::WINDOW, FOURKB),
-            ),
+            ("_NET_VIRTUAL_ROOTS", ValueType::List(AtomEnum::WINDOW, MEG)),
             (
                 "_NET_DESKTOP_LAYOUT",
                 ValueType::List(AtomEnum::CARDINAL, 4),
@@ -219,7 +276,7 @@ impl AtomManager {
                 ValueType::Single(AtomEnum::CARDINAL),
             ),
             // client messages
-            ("_NET_WM_STATE", ValueType::List(AtomEnum::ATOM, FOURKB)),
+            ("_NET_WM_STATE", ValueType::List(AtomEnum::ATOM, MEG)),
             // "_NET_CLOSE_WINDOW",
             // "_NET_WM_MOVERESIZE",
             // "_NET_MOVERESIZE_WINDOW",
@@ -235,13 +292,10 @@ impl AtomManager {
                 ValueType::Single(AtomEnum::STRING),
             ),
             ("_NET_WM_DESKTOP", ValueType::Single(AtomEnum::CARDINAL)),
-            (
-                "_NET_WM_WINDOW_TYPE",
-                ValueType::List(AtomEnum::ATOM, FOURKB),
-            ),
+            ("_NET_WM_WINDOW_TYPE", ValueType::List(AtomEnum::ATOM, MEG)),
             (
                 "_NET_WM_ALLOWED_ACTIONS",
-                ValueType::List(AtomEnum::ATOM, FOURKB),
+                ValueType::List(AtomEnum::ATOM, MEG),
             ),
             ("_NET_WM_STRUT", ValueType::List(AtomEnum::CARDINAL, 4)),
             (
@@ -254,7 +308,7 @@ impl AtomManager {
             ),
             (
                 "_NET_WM_ICON",
-                ValueType::ListOfLists(FOURKB, AtomEnum::CARDINAL, FOURKB),
+                ValueType::ListOfLists(MEG, AtomEnum::CARDINAL, MEG),
             ),
             ("_NET_WM_PID", ValueType::Single(AtomEnum::CARDINAL)),
             // "_NET_WM_HANDLED_ICONS",
@@ -262,12 +316,18 @@ impl AtomManager {
             ("_NET_FRAME_EXTENTS", ValueType::List(AtomEnum::CARDINAL, 4)),
             ("WM_NAME", ValueType::Single(AtomEnum::STRING)),
             ("WM_DELETE_WINDOW", ValueType::Single(AtomEnum::ATOM)),
-            ("WM_PROTOCOLS", ValueType::List(AtomEnum::ATOM, FOURKB)),
+            ("WM_PROTOCOLS", ValueType::List(AtomEnum::ATOM, MEG)),
+            ("WM_HINTS", ValueType::Single(AtomEnum::WM_HINTS)),
+            (
+                "WM_NORMAL_HINTS",
+                ValueType::Single(AtomEnum::WM_SIZE_HINTS),
+            ),
+            ("WM_ZOOM_HINTS", ValueType::Single(AtomEnum::WM_SIZE_HINTS)),
         ];
 
-        for (atom, value) in atoms {
+        for (atom, value) in atoms_def {
             let atom_value = c.intern_atom(false, atom.as_bytes())?.reply()?.atom;
-            let atom_struct = AtomStruct::new(atom, atom_value, value);
+            let atom_struct = AtomWrapper::new(atom, atom_value, value);
             if atom_value == 0 {
                 return Err(format!(
                     "x11 atom error: intern atom failed return ATOM_NONE for atom {atom}."
@@ -275,13 +335,18 @@ impl AtomManager {
                 .into());
             }
 
-            hm.insert(atom.into(), atom_struct);
+            atoms.insert(atom.into(), atom_struct);
         }
 
-        Ok(hm)
+        Ok(Self { atoms })
+    }
+
+    pub fn get(&self, name: &str) -> Option<&AtomWrapper> {
+        self.atoms.get(name)
     }
 }
 
+/// Send a client message event to a window.
 pub fn send_client_message(
     connection: Arc<impl Connection>,
     window: u32,

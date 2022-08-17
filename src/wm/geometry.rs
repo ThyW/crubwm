@@ -1,7 +1,10 @@
 use std::ops::{Add, AddAssign};
 
 use crate::config::Config;
-use x11rb::protocol::xproto::{ConfigureWindowAux, GetGeometryReply};
+use x11rb::{
+    properties::WmSizeHints,
+    protocol::xproto::{ConfigureWindowAux, GetGeometryReply},
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Geometry {
@@ -90,6 +93,29 @@ impl From<Geometry> for ConfigureWindowAux {
             .width(Some(g.width as u32))
             .height(Some(g.height as u32))
             .border_width(Some(0u32))
+    }
+}
+
+impl From<&WmSizeHints> for Geometry {
+    fn from(o: &WmSizeHints) -> Self {
+        let (mut x, mut y) = (0, 0);
+        if let Some((_, x1, y1)) = o.position {
+            x = x1;
+            y = y1;
+        }
+
+        let (mut w, mut h) = (640, 480);
+        if let Some((_, x1, y1)) = o.size {
+            w = x1;
+            h = y1;
+        }
+
+        Self {
+            x: x as _,
+            y: y as _,
+            width: w as _,
+            height: h as _,
+        }
     }
 }
 
