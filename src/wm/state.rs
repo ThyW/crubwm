@@ -16,9 +16,10 @@ use x11rb::{
 
 use crate::{
     config::{Config, Keybinds},
+    errm,
     errors::{Error, WmResult},
     ffi::find_xcb_visualtype,
-    log::{log, LL_FULL, LL_NORMAL},
+    log::{err, log, LL_FULL, LL_NORMAL},
     logm,
     parsers::ConfigParser,
     wm::actions::{Action, Direction},
@@ -307,7 +308,7 @@ impl State {
         }
         for monitor in self.monitors.iter_mut() {
             if let Err(e) = monitor.set_open_workspace(None) {
-                eprintln!("{}", e)
+                errm!("{}", e);
             }
         }
 
@@ -1130,8 +1131,7 @@ impl State {
 
     /// Handle a focus in event.
     pub fn handle_focus_in(&mut self, ev: &FocusInEvent) -> WmResult {
-        #[cfg(debug_assertions)]
-        println!("focus in in {}", ev.event);
+        logm!(LL_NORMAL, "focus in in {}", ev.event);
         let connection = self.connection();
         if let Some(workspace) = self.workspace_for_window(ev.event) {
             if let Some(focused) = workspace.focus.focused_client() {
@@ -1186,9 +1186,6 @@ impl State {
                     .collect::<Vec<String>>(),
             )
             .spawn()?;
-
-        #[cfg(debug_assertions)]
-        println!("command: {command} has child process {}", process.id());
 
         Ok(())
     }

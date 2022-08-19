@@ -10,8 +10,9 @@ use x11rb::{
 
 use crate::{
     config::Config,
+    errm,
     errors::WmResult,
-    log::{log, LL_NORMAL},
+    log::{err, log, LL_NORMAL},
     logm,
     parsers::{Command, CommandType},
     wm::state::State,
@@ -152,7 +153,7 @@ impl Wm {
 
             while let Some(ev) = ev_option {
                 if let Err(e) = self.handle_event(ev) {
-                    eprintln!("{}", e);
+                    errm!("{}", e);
                 }
                 ev_option = self.state.connection().poll_for_event()?;
             }
@@ -165,13 +166,17 @@ impl Wm {
             Event::Error(e) => {
                 let extension_name = e.extension_name.unwrap_or_else(|| "Unknown".to_string());
                 let request_name = e.request_name.unwrap_or("Unknown");
-                eprintln!(
-                    "[ERR] X11 Error Event Received: error-kind -> {:?},
+                errm!(
+                    "X11 Error Event Received: error-kind -> {:?},
                           error-code -> {},
                           bad-value -> {},
                           extension-name -> {},
                           request-name -> {}",
-                    e.error_kind, e.error_code, e.bad_value, extension_name, request_name
+                    e.error_kind,
+                    e.error_code,
+                    e.bad_value,
+                    extension_name,
+                    request_name
                 )
             }
             Event::KeyPress(e) => {

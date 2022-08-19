@@ -67,9 +67,7 @@ pub fn log<T: AsRef<str> + ?Sized>(msg: &T, level: u8) -> bool {
                     if let Ok(cloned) = fd.try_clone() {
                         let mut file = File::from(cloned);
                         if writeln!(&mut file, "[LOG] {}", msg.as_ref()).is_ok() {
-                            return file.flush().is_ok();
-                        } else {
-                            return false;
+                            file.flush().unwrap_or(());
                         }
                     }
                 }
@@ -80,9 +78,34 @@ pub fn log<T: AsRef<str> + ?Sized>(msg: &T, level: u8) -> bool {
     false
 }
 
+pub fn err<T: AsRef<str> + ?Sized>(msg: &T) {
+    // unsafe go brrrrrr lol
+    // pls don't scream at me, i know it's bad
+    unsafe {
+        if let Ok(guard) = WRITER.lock() {
+            if guard.is_some() {
+                let fd = guard.as_ref().unwrap();
+                if let Ok(cloned) = fd.try_clone() {
+                    let mut file = File::from(cloned);
+                    if writeln!(&mut file, "[ERROR] {}", msg.as_ref()).is_ok() {
+                        file.flush().unwrap_or(());
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! logm {
     (  $level:ident, $($arg:tt)* ) => {
-        log(&format!($($arg)*), $level)
+        log(&format!($($arg)*), $level);
+    }
+}
+
+#[macro_export]
+macro_rules! errm {
+    (  $($arg:tt)* ) => {
+        err(&format!($($arg)*))
     }
 }
