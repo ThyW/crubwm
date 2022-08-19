@@ -4,6 +4,7 @@ use x11rb::protocol::randr::{MonitorInfo, Output};
 use crate::{
     errors::WmResult,
     log::{log, LL_FULL},
+    logm,
     wm::{geometry::Geometry, workspace::WorkspaceId},
 };
 
@@ -65,22 +66,20 @@ impl Monitor {
                 return Err("This workspace is not located in on this monitor.".into());
             }
             self.open_workspace = Some(new_id);
-            log(
-                &format!(
-                    "Current open workspace on monitor: {} is {}",
-                    self.id, new_id
-                ),
+            logm!(
                 LL_FULL,
+                "Current open workspace on monitor: {} is {}",
+                self.id,
+                new_id,
             );
             Ok(())
         } else if let Some(workspace_id) = self.workspaces.first() {
             self.open_workspace = Some(*workspace_id);
-            log(
-                &format!(
-                    "Current open workspace on monitor: {} is {}",
-                    self.id, workspace_id
-                ),
+            logm!(
                 LL_FULL,
+                "Current open workspace on monitor: {} is {}",
+                self.id,
+                workspace_id
             );
             Ok(())
         } else {

@@ -12,6 +12,7 @@ use crate::{
     config::Config,
     errors::WmResult,
     log::{log, LL_NORMAL},
+    logm,
     parsers::{Command, CommandType},
     wm::state::State,
 };
@@ -95,9 +96,13 @@ impl Wm {
             .reply()?
             .atom;
 
-        log(
-            "Setting up bar update thread. Status bars will automatically be updated every second.",
+        let xd = "hello";
+
+        logm!(LL_NORMAL, "Hello world {}", xd);
+
+        logm!(
             LL_NORMAL,
+            "Setting up bar update thread. Status bars will automatically be updated every second.",
         );
         let _ = spawn(move || {
             let mut last_time = std::time::Instant::now();
@@ -131,7 +136,7 @@ impl Wm {
         let mut ran = false;
 
         // run the event loop, don't stop on errors, just report them and keep going.
-        log("Starting the event loop.", LL_NORMAL);
+        logm!(LL_NORMAL, "Starting the event loop.");
         loop {
             if !first {
                 first = true;
@@ -170,84 +175,71 @@ impl Wm {
                 )
             }
             Event::KeyPress(e) => {
-                log(
-                    &format!("Handling key press event on window {}", e.event),
-                    LL_NORMAL,
-                );
+                logm!(LL_NORMAL, "Handling key press event on window {}", e.event);
                 self.state.handle_key_press(&e)?;
             }
 
             Event::KeyRelease(e) => {
-                log(
-                    &format!("Handling key release event on window {}", e.detail),
+                logm!(
                     LL_NORMAL,
+                    "Handling key release event on window {}",
+                    e.detail,
                 );
                 self.state.handle_key_release(&e)?
             }
             Event::MapRequest(e) => {
-                log(
-                    &format!("Handling a map request for window {}", e.window),
-                    LL_NORMAL,
-                );
+                logm!(LL_NORMAL, "Handling a map request for window {}", e.window,);
                 self.state.manage_window(e.window)?;
             }
             Event::EnterNotify(e) => {
-                log(
-                    &format!("Handling enter notify for window {}", e.event),
-                    LL_NORMAL,
-                );
+                logm!(LL_NORMAL, "Handling enter notify for window {}", e.event,);
                 self.state.handle_enter_event(e.event)?;
             }
             Event::LeaveNotify(_) => {}
             Event::MotionNotify(e) => {
-                log(
-                    &format!("Handling a motion notify event in window {}", e.event),
+                logm!(
                     LL_NORMAL,
+                    "Handling a motion notify event in window {}",
+                    e.event,
                 );
 
                 self.state.handle_motion_notify(&e)?;
             }
             Event::ButtonPress(e) => {
-                log(
-                    &format!("Handling a button press event in window {}", e.event),
+                logm!(
                     LL_NORMAL,
+                    "Handling a button press event in window {}",
+                    e.event,
                 );
                 self.state.handle_button_press(&e)?;
             }
             Event::ButtonRelease(e) => {
-                log(
-                    &format!("Handling a button release event in window {}", e.event),
+                logm!(
                     LL_NORMAL,
+                    "Handling a button release event in window {}",
+                    e.event,
                 );
                 self.state.handle_button_release(&e)?;
             }
             Event::FocusIn(e) => {
-                log(
-                    &format!("Handling a focus in event in window {}", e.event),
-                    LL_NORMAL,
-                );
+                logm!(LL_NORMAL, "Handling a focus in event in window {}", e.event,);
                 self.state.handle_focus_in(&e)?;
             }
-            Event::ClientMessage(_e) => {
-                log(
-                    &format!("Received a client message from window {}", _e.window),
+            Event::ClientMessage(e) => {
+                logm!(
                     LL_NORMAL,
+                    "Received a client message from window {}",
+                    e.window,
                 );
             }
-            Event::Expose(_e) => {
-                log(
-                    &format!("Exposure event on window {}", _e.window),
-                    LL_NORMAL,
-                );
+            Event::Expose(e) => {
+                logm!(LL_NORMAL, "Exposure event on window {}", e.window,);
             }
             Event::UnmapNotify(_e) => {
-                log(
-                    &format!("Window {} has been unmapped", _e.window),
-                    LL_NORMAL,
-                );
+                logm!(LL_NORMAL, "Window {} has been unmapped", _e.window,);
             }
             Event::DestroyNotify(e) => {
-                log(&format!("Window {} has been destroyed, this window will no longer be managed by the window manager.", e.window), LL_NORMAL);
+                logm!( LL_NORMAL, "Window {} has been destroyed, this window will no longer be managed by the window manager.", e.window);
                 self.state.unmanage_window(e.window)?;
             }
             Event::PropertyNotify(e) => {
@@ -255,9 +247,11 @@ impl Wm {
                 if bar_widnows.contains(&e.window) {
                     self.state.update_bars()?;
                 } else {
-                    log(
-                        &format!("property notify in window: {} atom: {}", e.window, e.atom),
+                    logm!(
                         LL_NORMAL,
+                        "property notify in window: {} atom: {}",
+                        e.window,
+                        e.atom,
                     );
                 }
             }

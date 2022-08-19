@@ -79,3 +79,10 @@ pub fn log<T: AsRef<str> + ?Sized>(msg: &T, level: u8) -> bool {
 
     false
 }
+
+#[macro_export]
+macro_rules! logm {
+    (  $level:ident, $($arg:tt)* ) => {
+        log(&format!($($arg)*), $level)
+    }
+}

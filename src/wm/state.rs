@@ -19,6 +19,7 @@ use crate::{
     errors::{Error, WmResult},
     ffi::find_xcb_visualtype,
     log::{log, LL_FULL, LL_NORMAL},
+    logm,
     parsers::ConfigParser,
     wm::actions::{Action, Direction},
     wm::atoms::AtomManager,
@@ -138,7 +139,7 @@ impl State {
 
     /// Initiate the `KeyManager` with the Keybindings loaded in from a configuration file.
     pub fn init_keyman(&mut self, binds: Keybinds) -> WmResult {
-        log("Initializing keyboard manager.", LL_NORMAL);
+        logm!(LL_NORMAL, "Initializing keyboard manager.");
         let dpy = self.display();
         self.key_manager.init(dpy, &binds)?;
 
@@ -147,7 +148,7 @@ impl State {
             .ungrab_key(ANY_KEY_MASK, self.root_window(), ANY_MOD_KEY_MASK)?;
 
         if let Some(mask) = self.key_manager.get_floating_modifier() {
-            log(&format!("Floating modifier mask is {mask}"), LL_FULL);
+            logm!(LL_FULL, "Floating modifier mask is {mask}",);
             self.floating_modifier = mask;
         }
 
@@ -285,7 +286,7 @@ impl State {
     ///
     /// This method is also responsible for the creation and setup of monitors.
     pub fn init_workspaces(&mut self) -> WmResult {
-        log("Initializing workspaces...", LL_NORMAL);
+        logm!(LL_NORMAL, "Initializing workspaces...");
         self.setup_monitors()?;
         for workspace_settings in self.config.workspace_settings.clone().into_iter() {
             let layout_mask = LayoutMask::from_slice(&workspace_settings.allowed_layouts)?;
@@ -300,10 +301,7 @@ impl State {
                 self.monitors[monitor_index].id(),
             );
 
-            log(
-                &format!("Setting up a new workspace: {workspace:?}"),
-                LL_FULL,
-            );
+            logm!(LL_FULL, "Setting up a new workspace: {workspace:?}",);
             self.workspaces.push(workspace);
             self.monitors[monitor_index].add_workspace(workspace_settings.identifier)
         }
@@ -335,7 +333,7 @@ impl State {
 
     /// Create and setup monitors for workspaces.
     fn setup_monitors(&mut self) -> WmResult {
-        log("Setting up monitors...", LL_NORMAL);
+        logm!(LL_NORMAL, "Setting up monitors...");
         let monitor_reply =
             get_monitors(self.connection().as_ref(), self.root_window(), false)?.reply()?;
         let mut current_monitor_id = 0u32;
@@ -343,7 +341,7 @@ impl State {
         for monitor_info in monitor_reply.monitors {
             current_monitor_id += 1;
             let monitor = Monitor::from_monitor_info(monitor_info, current_monitor_id)?;
-            log(&format!("Discovered monitor: {monitor:?}"), LL_FULL);
+            logm!(LL_FULL, "Discovered monitor: {monitor:?}");
             self.monitors.push(monitor)
         }
 
@@ -354,7 +352,7 @@ impl State {
     pub fn setup_bars(&mut self) -> WmResult {
         // indicates, that there already is a icon tray and that all all further trays should be
         // ingored
-        log("Setting up status bars...", LL_NORMAL);
+        logm!(LL_NORMAL, "Setting up status bars...");
         let mut _has_tray = false;
         let mut bars = Vec::new();
         // intitial bar construction
@@ -505,21 +503,17 @@ impl State {
             self.connection().map_window(window_id)?;
             self.connection().flush()?;
 
-            log(
-                &format!(
-                    "Constructed a bar with id {} on monitor: {}; Bar window is {window_id}.",
-                    bar.id(),
-                    bar.monitor()
-                ),
+            logm!(
                 LL_NORMAL,
+                "Constructed a bar with id {} on monitor: {}; Bar window is {window_id}.",
+                bar.id(),
+                bar.monitor(),
             );
-            log(
-                &format!(
-                    "Bar with id {} settings has settings: {:?}",
-                    bar.id(),
-                    bar.settings()
-                ),
+            logm!(
                 LL_FULL,
+                "Bar with id {} settings has settings: {:?}",
+                bar.id(),
+                bar.settings()
             );
         }
 
@@ -698,7 +692,7 @@ impl State {
         let workspace = self.get_focused_workspace()?;
         let size = workspace.screen();
 
-        log(&format!("Focused workspace is: {}", workspace.id), LL_FULL);
+        logm!(LL_FULL, "Focused workspace is: {}", workspace.id);
 
         if warp_pointer {
             self.connection().warp_pointer(
@@ -800,11 +794,6 @@ impl State {
         let geometry = self.connection().get_geometry(window)?.reply()?;
         let new_client_id = self.new_client_id();
         let default_colormap = self.default_colormap();
-        let bar_windows = self.bar_windows.clone();
-
-        if bar_windows.contains(&window) {
-            return Ok(());
-        }
 
         let workspace = self.get_workspace_under_cursor_mut()?;
         let id = workspace.id;
@@ -1223,6 +1212,10 @@ impl State {
                                     &atom.to_be_bytes(),
                                 )?;
                                 self.connection.flush()?;
+                                logm!(
+                                    LL_NORMAL,
+                                    "Killed window {window} using WM_DELETE_WINDOW message.",
+                                );
                                 return Ok(());
                             }
                         }
@@ -1395,9 +1388,10 @@ impl State {
                 })
             {
                 let new_geom = hints.into();
-                log(
-                    &format!("WM_NORMAL_HINTS for window {window} are: {:?}", hints),
+                logm!(
                     LL_FULL,
+                    "WM_NORMAL_HINTS for window {window} are: {:?}",
+                    hints,
                 );
                 container.data_mut().set_geometry(new_geom);
                 connection.configure_window(
