@@ -791,6 +791,10 @@ impl State {
 
     /// Let a window be managed by the window manager.
     pub fn manage_window(&mut self, window: u32) -> WmResult {
+        if self.bar_windows.contains(&window) {
+            return Ok(());
+        }
+
         let config = self.config.clone();
         let connection = self.connection();
         let geometry = self.connection().get_geometry(window)?.reply()?;
@@ -809,10 +813,32 @@ impl State {
             .unwrap_or(ContainerTypeMask::TILING);
         self.focus_workspace(id, false)?;
 
-        self.get_focused_workspace_mut()?.insert_client(
-            Client::new_without_process_id(window, geometry, new_client_id, &config),
-            workspace_container_type,
-        );
+        let pid_reply_result =
+            self.atoms
+                .get("_NET_WM_PID")
+                .unwrap()
+                .get_property(window, connection.clone(), None);
+
+        // Make sure that a client is created everytime, even if getting the PID information fails.
+        let mut with_pid = false;
+
+        if let Ok(pid_reply) = pid_reply_result {
+            if let Some(return_value) = pid_reply.first() {
+                if let Ok(pid) = return_value.clone().try_into() {
+                    self.get_focused_workspace_mut()?.insert_client(
+                        Client::new(window, pid, geometry, new_client_id, &config),
+                        workspace_container_type,
+                    );
+                    with_pid = true;
+                }
+            }
+        }
+        if !with_pid {
+            self.get_focused_workspace_mut()?.insert_client(
+                Client::new_without_process_id(window, geometry, new_client_id, &config),
+                workspace_container_type,
+            );
+        }
 
         let old_event_mask = self
             .connection()
@@ -1202,18 +1228,22 @@ impl State {
                         }
                     }
                 }
+            } else {
+                let workspace = self.workspace_for_window(window).unwrap();
+                if let Ok(cont) = workspace.find_by_window_id(window) {
+                    if let Some(pid) = cont.data().process_id() {
+                        std::process::Command::new("/bin/sh")
+                            .args(vec!["-c", "kill", &format!("{pid}")])
+                            .spawn()?;
+                        logm!(LL_NORMAL, "Killed window {window} using _NET_WM_PID.",);
+                        return Ok(());
+                    };
+                };
             }
-            if let Some(pid_atom) = self.atoms.get("_NET_WM_PID") {
-                let pid: u32 = pid_atom.get_property(window, self.connection(), None)?[0]
-                    .clone()
-                    .try_into()?;
-                let _ = std::process::Command::new("kill")
-                    .arg(format!("{pid}"))
-                    .status()?;
-            }
+            return Err(format!("Unable to kill window {window}").into());
         }
 
-        Ok(())
+        Err("Unable to kill window. Window not found!".into())
     }
 
     /// Focus a window given a direction.
