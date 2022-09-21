@@ -1446,7 +1446,7 @@ impl State {
     fn action_reload_config(&mut self) -> WmResult {
         // TODO: Take a look at how monitor changes should be handled
         let path = &self.config.path;
-        let config = ConfigParser::parse_with_path(path)?;
+        let config = ConfigParser::parse_with_path(path.as_str())?;
         let mask: u32 =
             (EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION).into();
         self.config = Rc::new(config);

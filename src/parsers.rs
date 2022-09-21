@@ -1,6 +1,7 @@
-use std::collections::VecDeque;
 use std::fs::read_to_string;
 use std::io::Write;
+
+use hp::ParsedArguments;
 
 use crate::config::Config;
 use crate::errors::Error;
@@ -9,140 +10,8 @@ use crate::WmResult;
 /// The default config path is located in `~/.config/crubwm/config`
 const CONFIG_PATH: &str = ".config/crubwm/config";
 
-/// Command line argument parser.
-///
-/// Takes an input in the form of a vector of Strings and returns a Result with either the parsed
-/// commands or an ArgumentParserError;
-pub struct ArgumentParser;
-
-#[derive(Debug, PartialEq, Eq)]
-/// Enumeration of all possible and legal command types which can be created from command line
-/// arguments.
-pub enum CommandType {
-    /// Takes no other arguments.
-    ///
-    /// If this command is passed, all other commands are ignored and a help message will be
-    /// printed out.
-    Help,
-    /// Takes one argument.
-    ///
-    /// Ignores the default config path, instead uses the one passed as an argument.
-    Config,
-}
-
-#[derive(Debug)]
-/// Represents a single parsed legal command.
-pub struct Command {
-    cmd_type: CommandType,
-    args: Option<Vec<String>>,
-}
-
-impl Command {
-    /// Create a new command given its type and number of arguments.
-    fn new(cmd_type: CommandType, num_args: usize) -> Self {
-        if num_args == 0 {
-            Self {
-                cmd_type,
-                args: None,
-            }
-        } else {
-            Self {
-                cmd_type,
-                args: Some(Vec::with_capacity(num_args)),
-            }
-        }
-    }
-
-    /// Does the command have some subarguments?
-    fn has_args(&self) -> bool {
-        self.args.is_some()
-    }
-
-    /// Does the command have its required amount of arguments?
-    ///
-    /// Returns true even if the command takes no additional arguments.
-    fn is_complete(&self) -> bool {
-        if self.has_args() {
-            let temp = self.args.as_ref().unwrap();
-            temp.len() == temp.capacity()
-        } else {
-            true
-        }
-    }
-
-    /// Attempt to add a new argument.
-    ///
-    /// Returns true if it's already full or if the addition filled it up.
-    /// Returns false otherwise.
-    fn add(&mut self, item: String) -> bool {
-        if self.is_complete() {
-            true
-        } else {
-            self.args.as_mut().unwrap().push(item);
-
-            self.is_complete()
-        }
-    }
-
-    pub fn get_type(&self) -> &CommandType {
-        &self.cmd_type
-    }
-
-    fn config_path(path: impl AsRef<str>) -> Self {
-        Self {
-            cmd_type: CommandType::Config,
-            args: Some(vec![path.as_ref().to_string()]),
-        }
-    }
-}
-
 /// Config file parser.
 pub struct ConfigParser;
-
-impl ArgumentParser {
-    /// Take a list of command line arguments and parse them into a list of commands.
-    pub fn parse(mut input: VecDeque<String>) -> WmResult<Vec<Command>> {
-        let mut return_vec = Vec::new();
-
-        let mut command: Option<Command> = None;
-
-        while !input.is_empty() {
-            let current = input.pop_front().unwrap();
-
-            if !current.starts_with('-') {
-                if command.is_some() {
-                    let inner = command.as_mut().unwrap();
-                    inner.add(current);
-                } // else ignore
-            } else {
-                if command.is_some() {
-                    let inner = command.take().unwrap();
-                    if !inner.is_complete() {
-                        return Err("argument error: sub-arguments missing.".into());
-                    } else {
-                        return_vec.push(inner)
-                    }
-                }
-                match &current[..] {
-                    "-h" | "--help" => {
-                        command = Some(Command::new(CommandType::Help, 0));
-                    }
-                    "--config" => command = Some(Command::new(CommandType::Config, 1)),
-                    _ => (),
-                }
-            }
-        }
-
-        if let Some(inner) = command {
-            if inner.is_complete() {
-                return_vec.push(inner)
-            } else {
-                return Err("argument error: sub-arguments missing.".into());
-            }
-        }
-        Ok(return_vec)
-    }
-}
 
 impl ConfigParser {
     /// Parse a config file.
@@ -150,7 +19,10 @@ impl ConfigParser {
     /// Given a list of commands already received, check whether the `--config` command has been
     /// passed and read the new path, otherwise read the default config file which is located in
     /// `~/.config/crubwm/config`.
-    pub fn parse(commands: &Vec<Command>) -> WmResult<Config> {
+    pub fn parse(
+        commands: Option<&ParsedArguments>,
+        path_arg: Option<&str>,
+    ) -> WmResult<Config> {
         let mut ret = Config::default();
         let mut default_path = std::env::var("HOME").map_err(|_| {
             Error::Generic("parsing error: unable to read $HOME environmental variable.".into())
@@ -159,13 +31,14 @@ impl ConfigParser {
         default_path.push_str(CONFIG_PATH);
         let mut path = default_path.clone();
 
-        // check whether a different config file should be loaded
-        for command in commands {
-            if command.get_type() == &CommandType::Config {
-                path = command.args.as_ref().unwrap()[0].clone();
-            } else if command.get_type() == &CommandType::Help {
-                return Ok(ret);
+        if let Some(arguments) = commands {
+            if let Some(config_file) = arguments.get("--config") {
+                path = config_file.values()[0].clone()
             }
+        }
+
+        if let Some(ppath) = path_arg {
+            path = ppath.to_string()
         }
 
         if !std::path::PathBuf::from(&default_path).exists() {
@@ -234,10 +107,8 @@ impl ConfigParser {
         Ok(ret)
     }
 
-    pub fn parse_with_path(path: impl AsRef<str>) -> WmResult<Config> {
-        let cmds = vec![Command::config_path(&path)];
-
-        Self::parse(&cmds)
+    pub fn parse_with_path(path: &str) -> WmResult<Config> {
+        Self::parse(None, Some(path))
     }
 }
 

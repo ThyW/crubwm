@@ -10,3 +10,4 @@ edition = "2021"
 x11rb = {version = "0.10.1", features = ["randr", "allow-unsafe-code"]}
 x11 = "2.19"
 cairo-rs = { version = "0.15.12", features = ["xcb"] }
+hp = "1"

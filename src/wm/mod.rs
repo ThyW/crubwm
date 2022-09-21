@@ -14,7 +14,6 @@ use crate::{
     errors::WmResult,
     log::{err, log, LL_NORMAL},
     logm,
-    parsers::{Command, CommandType},
     wm::state::State,
 };
 
@@ -29,13 +28,6 @@ pub mod layouts;
 pub mod monitors;
 pub mod state;
 pub mod workspace;
-
-fn print_help_message() {
-    println!("crubwm is a tiling X window manager.\n");
-    println!("Here is a list of all command line options:\n");
-    println!("  -h or --help   \t\tPrint this message.");
-    println!("  --config [PATH]\t\tUse a different config file.");
-}
 
 /// The WM struct, holding all the necessary state and information for and about the operation of
 /// the window manager.
@@ -66,14 +58,7 @@ impl Wm {
 
     /// Run the window manager, this instantiates the event loop, constructs workspaces and does
     /// all the necessary work in order for the window manager to function.
-    pub fn run(&mut self, commands: Vec<Command>) -> WmResult {
-        for command in commands {
-            if command.get_type() == &CommandType::Help {
-                print_help_message();
-                return Ok(());
-            }
-        }
-
+    pub fn run(&mut self) -> WmResult {
         // run startup hooks
         self.config.start_hooks.run()?;
         // instantiate workspaces

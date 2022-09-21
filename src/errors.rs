@@ -18,12 +18,19 @@ pub enum Error {
     Fmt(std::fmt::Error),
     SystemTime(std::time::SystemTimeError),
     Cairo(cairo::Error),
+    HpError(hp::HpError),
     MutexPoison,
 }
 
 impl<T> From<PoisonError<T>> for Error {
     fn from(_: PoisonError<T>) -> Self {
         Self::MutexPoison
+    }
+}
+
+impl From<hp::HpError> for Error {
+    fn from(e: hp::HpError) -> Self {
+        Self::HpError(e)
     }
 }
 
@@ -148,6 +155,7 @@ impl std::fmt::Display for Error {
             Self::SystemTime(e) => write!(f, "[ERR] {}", e),
             Self::Cairo(e) => write!(f, "[ERR] {}", e),
             Self::MutexPoison => write!(f, "[ERR] bar mutex has been poisoned."),
+            Self::HpError(e) => write!(f, "[ERR] {}", e),
         }
     }
 }

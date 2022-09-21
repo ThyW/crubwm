@@ -8,16 +8,32 @@ mod utils;
 mod wm;
 
 use errors::WmResult;
+use hp::{Parser, Template};
 use log::prepare_logger;
-use parsers::{ArgumentParser, ConfigParser};
+use parsers::ConfigParser;
 use wm::Wm;
 
-use std::{collections::VecDeque, process::exit};
+use std::{fmt::Display, process::exit};
 
 fn main() {
-    let args: VecDeque<String> = std::env::args().collect();
-    if let Ok(commands) = print_err(ArgumentParser::parse(args)) {
-        if let Ok(config) = print_err(ConfigParser::parse(&commands)) {
+    let mut parser = Parser::new()
+        .with_author("zir")
+        .with_description("tiling x11 window manager.")
+        .with_program_name("crubwm")
+        .exit_on_help(true);
+    parser.add_template(
+        Template::new()
+            .matches("-c")
+            .matches("--config")
+            .with_help("Specify a config to run with")
+            .number_of_values(1)
+            .optional_values(false),
+    );
+
+    let command_line_arguments_res = parser.parse(None);
+
+    if let Ok(command_line_arguments) = print_err(command_line_arguments_res) {
+        if let Ok(config) = print_err(ConfigParser::parse(Some(&command_line_arguments), None)) {
             if print_err(prepare_logger(
                 &config.settings.log_file,
                 config.settings.log_level,
@@ -25,7 +41,7 @@ fn main() {
             .is_ok()
             {
                 if let Ok(mut wm) = print_err(Wm::new(config)) {
-                    if print_err(wm.run(commands)).is_err() {
+                    if print_err(wm.run()).is_err() {
                         exit(1)
                     }
                 }
@@ -34,12 +50,12 @@ fn main() {
     }
 }
 
-fn print_err<T>(input: WmResult<T>) -> WmResult<T> {
+fn print_err<T, E: Into<errors::Error> + Display>(input: Result<T, E>) -> WmResult<T> {
     match input {
         Ok(t) => Ok(t),
         Err(e) => {
             eprintln!("{}", &e);
-            Err(e)
+            Err(e.into())
         }
     }
 }
