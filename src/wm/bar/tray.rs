@@ -1,9 +1,6 @@
 use cairo::Context;
 
-use crate::{
-    config::{IconTraySettings, WmResult},
-    wm::geometry::Geometry,
-};
+use crate::{config::IconTraySettings, errors::WmResult, wm::geometry::Geometry};
 
 #[derive(Clone, Debug)]
 pub struct IconTraySegment {

@@ -1,8 +1,8 @@
 use cairo::Context;
 
 use crate::{
-    config::{WmResult, WorkspaceSegmentSettings},
-    errors::Error,
+    config::WorkspaceSegmentSettings,
+    errors::{Error, WmResult},
     utils,
     wm::{
         geometry::{Geometry, TextExtents},

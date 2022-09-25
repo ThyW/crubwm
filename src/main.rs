@@ -1,11 +1,33 @@
-#![feature(iter_collect_into)]
-mod config;
-mod errors;
-mod ffi;
-mod log;
-mod parsers;
-mod utils;
-mod wm;
+//! # About
+//! Crubwm is a tiling window manager for the X11 windowing protocol. It is a hobby project and not
+//! really meant to be a serious competitor, nor an alternative to any of the existing and
+//! established window managers. The source code, as well as the configuration manual can be found
+//! on [github](https://github.com/ThyW/crubwm).
+//!
+//! # Overview
+//! As (mostly) every other Rust program, the window manager starts in the main function. We first
+//! parse the command line arguments. After that the config is loaded and parsed, the logger is
+//! initialized. After that, the main event processing loop is started.
+//!
+//! - for an overview of the command line and config file parsers, have a look into [`parsers`][crate::parsers].
+//! - for an overview of the configuration settings, have a look at [`config`][crate::config].
+//! - when looking for the actual window managing implementation, take a look at the [`wm module`][crate::wm]
+//! and the [`State`][crate::wm::state::State] struct.
+
+/// All the configuration settings and defaults.
+pub mod config;
+/// WmResult and Error types.
+pub mod errors;
+/// C types and helper functions.
+pub mod ffi;
+/// Info and error logging utilities.
+pub mod log;
+/// Implementation of the command line option and config file parsers.
+pub mod parsers;
+/// General utilities.
+pub mod utils;
+/// Window manager implementation and utilities.
+pub mod wm;
 
 use errors::WmResult;
 use hp::{Parser, Template};

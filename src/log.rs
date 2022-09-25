@@ -7,7 +7,7 @@ use std::sync::{
     Mutex,
 };
 
-use crate::config::WmResult;
+use crate::errors::WmResult;
 
 const LL_OFF: u8 = 0;
 pub const LL_NORMAL: u8 = 1;

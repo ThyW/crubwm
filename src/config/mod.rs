@@ -5,12 +5,12 @@ pub mod settings;
 pub mod start_hooks;
 pub mod workspace_settings;
 
-pub use crate::errors::WmResult;
+use crate::errors::WmResult;
 pub use bar_settings::*;
 pub use keybinds::*;
-pub use settings::*;
-pub use start_hooks::*;
-pub use workspace_settings::*;
+use settings::*;
+use start_hooks::*;
+use workspace_settings::*;
 
 /// A representation of a parsed configuration file with all the options, hooks and keybinds for
 /// the window manager.

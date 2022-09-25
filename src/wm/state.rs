@@ -1165,7 +1165,7 @@ impl State {
     fn action_execute(&mut self, command: String) -> WmResult {
         // TODO: get rid of this on release
         #[cfg(debug_assertions)]
-        let process = std::process::Command::new("bash")
+        let _ = std::process::Command::new("/bin/bash")
             .env("DISPLAY", ":1")
             .arg("-c")
             .args(
@@ -1177,7 +1177,7 @@ impl State {
             .spawn()?;
 
         #[cfg(not(debug_assertions))]
-        let _ = std::process::Command::new("bash")
+        let _ = std::process::Command::new("/bin/bash")
             .arg("-c")
             .args(
                 command

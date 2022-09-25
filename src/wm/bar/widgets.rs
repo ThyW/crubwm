@@ -3,8 +3,8 @@ use std::{process::Command, time::UNIX_EPOCH, vec};
 use cairo::Context;
 
 use crate::{
-    config::{WidgetSettings, WmResult},
-    errors::Error,
+    config::WidgetSettings,
+    errors::{Error, WmResult},
     utils,
     wm::geometry::{Geometry, TextExtents},
 };

@@ -49,12 +49,16 @@ impl ValueType {
 }
 
 #[derive(Debug, Clone)]
+/// A wrapper for the `WmClass` struct which implements `Clone`.
 pub struct WmClassWrapper {
+    /// Wm class string.
     pub class: Option<String>,
+    /// Wm instance string.
     pub instance: Option<String>,
 }
 
 impl WmClassWrapper {
+    /// Create a new wrapper from an instance of `WmClass`.
     fn from_class(c: &WmClass) -> Self {
         let class = String::from_utf8(c.class().to_vec()).ok();
         let instance = String::from_utf8(c.instance().to_vec()).ok();
@@ -102,11 +106,20 @@ impl TryInto<String> for PropertyReturnValue {
     }
 }
 
+/// Manager for the atoms used by the window manager.
+///
+/// Use the `get()` method with the desired property name to retrieve the `AtomWrapper` for that
+/// property and than call `get_property()` on the `AtomWrapper` to retrieve the property from the
+/// server.
+#[derive(Debug, Clone)]
 pub struct AtomManager {
     atoms: HashMap<String, AtomWrapper>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// A struct which wraps an atom.
+///
+/// It contains the return value type of the atom, its XID and its string name, for example: "WM_NORMAL_HINTS".
 pub struct AtomWrapper {
     name: &'static str,
     x_id: u32,
@@ -140,7 +153,7 @@ impl AtomWrapper {
 
     /// Return the amount of bytes which will be requested from the server, depending on the size
     /// of the list and format of the data.
-    fn byte_amount(&self, format: Option<u8>) -> usize {
+    pub fn byte_amount(&self, format: Option<u8>) -> usize {
         let format = format.unwrap_or(32) as usize;
         match self.value_type() {
             ValueType::Single(_) => MEG as usize,
@@ -341,6 +354,7 @@ impl AtomManager {
         Ok(Self { atoms })
     }
 
+    /// Attempt to get an `AtomWrapper` for a named property.
     pub fn get(&self, name: &str) -> Option<&AtomWrapper> {
         self.atoms.get(name)
     }

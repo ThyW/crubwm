@@ -1,7 +1,8 @@
 use cairo::Context;
 
 use crate::{
-    config::{WindowTitleSettings, WmResult},
+    config::WindowTitleSettings,
+    errors::WmResult,
     utils,
     wm::geometry::{Geometry, TextExtents},
 };
