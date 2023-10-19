@@ -1,5 +1,5 @@
 # keybinds
-keybind "<Alt>l" execute "alacritty"
+keybind "<Alt>l" execute "xterm"
 keybind "<Alt>r" execute "dmenu_run"
 keybind "<Alt>1" goto "1"
 keybind "<Alt>2" goto "2"
@@ -26,7 +26,6 @@ keybind "<Alt>n" focus "next"
 keybind "<Alt><Shift>p" swap "previous"
 keybind "<Alt><Shift>n" swap "next"
 keybind "<Alt>k" kill
-keybind "<Alt>i" execute "firefox-nightly"
 keybind "<Alt>h" change_layout "TilingEqualHorizontal"
 keybind "<Alt>v" change_layout "TilingEqualVertical"
 keybind "<Alt>m" change_layout "TilingMasterStack"
