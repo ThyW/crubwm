@@ -60,8 +60,8 @@ pub enum LayoutType {
     Stacking = LayoutMask::STACKING,
 }
 
-impl LayoutType {
-    pub fn default() -> Self {
+impl Default for LayoutType {
+    fn default() -> Self {
         Self::TilingEqualHorizontal
     }
 }

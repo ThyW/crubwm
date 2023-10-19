@@ -168,11 +168,7 @@ impl WorkspaceInfo {
     pub fn set_open(&mut self, ws: Option<WorkspaceId>) -> WmResult {
         if let Some(workspace_id) = ws {
             for segment in self.workspaces.iter_mut() {
-                if segment.workspace_id == workspace_id {
-                    segment.open = true;
-                } else {
-                    segment.open = false
-                }
+                segment.open = segment.workspace_id == workspace_id;
             }
         }
         Ok(())

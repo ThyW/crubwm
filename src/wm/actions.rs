@@ -64,7 +64,7 @@ impl Action {
     /// Attetmpt to parse a string into an `Action`.
     ///
     /// More about this can be found in the `config` and `parsers` section of the documentation.
-    pub fn from_str(s: String) -> WmResult<Self> {
+    pub fn from_action_str(s: String) -> WmResult<Self> {
         if s.is_empty() {
             Err("action paring error: Action is empty!".into())
         } else {

@@ -1,4 +1,4 @@
-use crate::errors::WmResult;
+use crate::errors::{WmResult, Error as WmError};
 
 use std::ffi::CStr;
 
@@ -109,10 +109,14 @@ impl Keysym {
     }
 
     /// A reverse process of trying to get a Keycode from a Keysym.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn try_get_keycode(&mut self, dpy: *mut Display) -> WmResult<u8> {
         if self.code() != 0 {
             Ok(self.code())
         } else {
+            if dpy.is_null() {
+                return Err(WmError::NullPtr)
+            }
             let code = unsafe { XKeysymToKeycode(dpy, self.value()) };
             self.code = Some(code);
             Ok(self.code())
@@ -128,17 +132,22 @@ impl Keysym {
         let value = unsafe { XStringToKeysym(cstring.as_c_str().as_ptr()) };
         let ptr = unsafe { XKeysymToString(value) };
         if ptr.is_null() {
-            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into());
+            return Err(WmError::NullPtr);
         }
         let name = unsafe { std::ffi::CStr::from_ptr(ptr).to_str()?.to_string() };
         Ok(Keysym::new(name, value))
     }
+
     /// Given a connection to Xlib and a keycode, attempt to get a Keysym.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn keysym_from_keycode(dpy: *mut Display, keycode: Keycode, mods: i32) -> WmResult<Keysym> {
+        if dpy.is_null() {
+            return Err(WmError::NullPtr)
+        }
         let value = unsafe { XKeycodeToKeysym(dpy, keycode, mods) };
         let raw_str = unsafe { XKeysymToString(value) };
         if raw_str.is_null() {
-            return Err("keysym error: XKeysymToString returned a NULL pointer, indicating that the value passed to it was wrong.".into());
+            return Err(WmError::NullPtr);
         }
         let name = unsafe { std::ffi::CStr::from_ptr(raw_str).to_str()?.to_string() };
 

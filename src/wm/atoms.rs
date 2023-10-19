@@ -156,7 +156,7 @@ impl AtomWrapper {
     pub fn byte_amount(&self, format: Option<u8>) -> usize {
         let format = format.unwrap_or(32) as usize;
         match self.value_type() {
-            ValueType::Single(_) => MEG as usize,
+            ValueType::Single(_) => MEG,
             ValueType::List(_, len) => len * format,
             ValueType::ListOfLists(len1, _, len2) => len1 * len2 * format,
         }

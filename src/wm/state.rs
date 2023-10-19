@@ -110,8 +110,8 @@ impl State {
                 | EventMask::PROPERTY_CHANGE,
         );
 
-        let root_window = connection.setup().roots[screen_index as usize].root;
-        let default_colormap = connection.setup().roots[screen_index as usize].default_colormap;
+        let root_window = connection.setup().roots[screen_index].root;
+        let default_colormap = connection.setup().roots[screen_index].default_colormap;
         connection.change_window_attributes(root_window, &change)?;
         connection.flush()?;
 
@@ -1123,7 +1123,7 @@ impl State {
                 c.geometry.height = h as u16;
                 c.draw_borders(connection, default_colormap)?;
             }
-            container.change_last_position((ev.root_x - diff.0 as i16, ev.root_y - diff.1 as i16));
+            container.change_last_position((ev.root_x - diff.0, ev.root_y - diff.1));
         }
 
         Ok(())

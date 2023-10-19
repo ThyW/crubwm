@@ -245,7 +245,7 @@ impl Key {
     fn from_vec(input: &Vec<String>) -> WmResult<Vec<Self>> {
         let mut ret = Vec::new();
         for each in input {
-            let parsed = Key::from_str(each.as_ref())?;
+            let parsed = Key::from_key_str(each.as_ref())?;
             ret.push(parsed);
         }
 
@@ -369,7 +369,7 @@ impl Key {
         }
     }
 
-    pub fn from_str(s: &str) -> WmResult<Self> {
+    pub fn from_key_str(s: &str) -> WmResult<Self> {
         let key = match s.to_lowercase().as_str() {
             "esc" | "escape" => Key::Esc,
             "f1" => Key::F1,
@@ -538,7 +538,7 @@ impl Keybind {
                     }
                 }
             } else {
-                let key = Key::from_str(&current_char.to_string())?;
+                let key = Key::from_key_str(&current_char.to_string())?;
                 ret.push(key)
             }
         }
@@ -546,7 +546,7 @@ impl Keybind {
     }
 
     fn parse_action(str_action: String) -> WmResult<Action> {
-        Action::from_str(str_action)
+        Action::from_action_str(str_action)
     }
 }
 
@@ -575,7 +575,7 @@ mod tests {
         let dpy = unsafe { XOpenDisplay(std::ptr::null()) };
 
         let keysym = Keysym::keysym_from_keycode(dpy, 0x11, 0).unwrap();
-        let key = Key::from_str(keysym.name().as_str()).unwrap();
+        let key = Key::from_key_str(keysym.name().as_str()).unwrap();
 
         assert_eq!(Key::Key8, key);
     }

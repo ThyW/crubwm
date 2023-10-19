@@ -20,6 +20,7 @@ pub enum Error {
     Cairo(cairo::Error),
     HpError(hp::HpError),
     MutexPoison,
+    NullPtr,
 }
 
 impl<T> From<PoisonError<T>> for Error {
@@ -155,6 +156,7 @@ impl std::fmt::Display for Error {
             Self::SystemTime(e) => write!(f, "[ERR] {}", e),
             Self::Cairo(e) => write!(f, "[ERR] {}", e),
             Self::MutexPoison => write!(f, "[ERR] bar mutex has been poisoned."),
+            Self::NullPtr => write!(f, "[ERR] a pointer expected to be not null is null"),
             Self::HpError(e) => write!(f, "[ERR] {}", e),
         }
     }
